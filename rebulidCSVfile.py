@@ -28,10 +28,6 @@ class RebuildCSVFile(CSVParser.CSVParser):
                 newResultCSV[-1]['endtime'] = endtime
 
 
-
-
-
-
         # Write to csv file
         self.writeCSVfile(newFileName=self.fileName + "_new.csv", data=newResultCSV, method='dict')
         print(f'rebuild csv {self.fileRoute} {self.fileName} done!')
