@@ -1,2 +1,3 @@
-# ETC_FreewayAccidentAnalysis
-ETC_FreewayAccidentAnalysis
+# FreewayAccidentAnalysis
+
+A project delegated by Prof. Shou-Ren Hu
