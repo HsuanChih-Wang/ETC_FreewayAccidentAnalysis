@@ -4,7 +4,7 @@ import CSVParser
 from datetime import datetime, timedelta
 import mysql.connector
 import bisect
-
+A = 1
 Freeway_info={'國道1號': ['北向', '南向'],
               '國道1號高架': ['北向', '南向'],
               '國道2號': ['西向', '東向'],
@@ -16,9 +16,7 @@ freewayMaxMiles = {'國道1號': 100, '國道2號': 0, '國道3號': 110, '國�
 
 freewayCSVContentDict = {'國道1號北': 0, '國道1號南': 0, '國道3號北': 0, '國道3號南': 0}
 
-year = '2020'
-freeway = '國道1號'
-direction = '北'
+
 
 class MysqlConnector():
 
@@ -87,8 +85,12 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 
 
 class TrafficVolumeDataParser(CSVParser.CSVParser):
+
+    PCU = {'S': 1.0, 'L': 1.6, 'T': 2.0}
+
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
+        self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0}
         self.readCSVfile(method='dict')
 
     def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
@@ -99,7 +101,7 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         trafficVolumeDict = {31: 0, 32: 0, 41: 0, 42: 0, 5: 0}
         '''
 
-        trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0}
+
         tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
 
         for item in self.CSVFileContent:
@@ -114,11 +116,21 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         if len(tempResults) < 5:
             raise NotFindTrafficVolumeError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
 
-        trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
-        trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
-        trafficVolumeDict['T'] = int(tempResults['5'])
+        self.trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
+        self.trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
+        self.trafficVolumeDict['T'] = int(tempResults['5'])
 
-        return trafficVolumeDict
+        return self.trafficVolumeDict
+
+    def get_PCU_Volumes(self):
+        PCE = TrafficVolumeDataParser.PCU['S'] * self.trafficVolumeDict['S'] + \
+              TrafficVolumeDataParser.PCU['T'] * self.trafficVolumeDict['T'] + \
+              TrafficVolumeDataParser.PCU['L'] * self.trafficVolumeDict['L']
+        return PCE
+
+    def get_totalVolumes(self):
+        totalVolume = self.trafficVolumeDict['S'] + self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
+        return totalVolume
 
 
 
@@ -163,6 +175,9 @@ if __name__ == '__main__':
                                                    gantryID=gantryID, direction=direction)
 
 
+        row[freewayCSVColumnNames.index('volume_S')] = trafficVolumes['S']
+        row[freewayCSVColumnNames.index('volume_L')] = trafficVolumes['L']
+        row[freewayCSVColumnNames.index('volume_T')] = trafficVolumes['T']
 
 
     #mysqlConnector = MysqlConnector(host='localhost', user='root', password='wang71026', database='freeway')
