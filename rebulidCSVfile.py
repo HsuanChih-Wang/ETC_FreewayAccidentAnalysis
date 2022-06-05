@@ -9,7 +9,6 @@ class RebuildCSVFile(CSVParser.CSVParser):
 
     def rebuildResultsCSV(self):
 
-
         from copy import deepcopy
         newResultCSV = []
         timeList = []
@@ -26,7 +25,6 @@ class RebuildCSVFile(CSVParser.CSVParser):
                 newResultCSV.append(newRow)
                 newResultCSV[-1]['starttime'] = starttime
                 newResultCSV[-1]['endtime'] = endtime
-
 
         # Write to csv file
         self.writeCSVfile(newFileName=self.fileName + "_new.csv", data=newResultCSV, method='dict')

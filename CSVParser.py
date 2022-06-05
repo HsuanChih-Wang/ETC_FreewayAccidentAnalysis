@@ -56,3 +56,11 @@ class CSVParser():
 
     def getColunmnames(self):
         return self.CSVFileColumnNames
+
+    def columnName_to_index(self, columnName):
+        try:
+            index = self.CSVFileContent.index(columnName)
+        except ValueError:
+            print(f"columnName: {columnName} is not existed in the columnNameList {self.CSVFileColumnNames}")
+            raise ValueError
+        return index

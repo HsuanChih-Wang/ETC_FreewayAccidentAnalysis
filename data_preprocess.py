@@ -20,7 +20,6 @@ year = '2020'
 freeway = '國道1號'
 direction = '北'
 
-
 class MysqlConnector():
 
     def __init__(self, host, user, password, database):
@@ -44,41 +43,90 @@ class MysqlConnector():
     def closeConnect(self):
         self.dbConnect.close()
 
-class ETC_Data_Parser(CSVParser.CSVParser):
-    def __init__(self, fileRoute, fileName, ETC_GateReferenceFileName):
+class NotFindEquipmentIDError(Exception):
+    """Exception raised for errors in the input arguments.
+      Attributes:
+          inputArgs -- input arguments
+          message -- explanation of the error
+    """
+    def __init__(self, inputArgs: dict, message="Can not find equipment ID corresponding to input arguments "):
+        self.inputArgs = inputArgs
+        self.message = message + str(inputArgs)
+        super().__init__(self.message)
+    pass
+
+class NotFindTrafficVolumeError(Exception):
+
+    def __init__(self, inputArgs: dict, message="Can not find trafficVolumes "):
+        self.inputArgs = inputArgs
+        self.message = message + str(inputArgs)
+        super().__init__(self.message)
+    pass
+
+
+class MileToEquipementIDConverter(CSVParser.CSVParser):
+
+    def __init__(self, fileRoute, fileName):
+        super().__init__(fileRoute, fileName) #Input: Reference File
+
+    def read_reference_file(self):
+        super().readCSVfile(method='dict')
+
+    def get_equipementID(self, inputArgs: dict):
+        """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
+        result = 0
+        try:
+            for row in self.CSVFileContent:
+                if row['freeway'] == inputArgs['freeway'] and row['direction'] == inputArgs['direction'] \
+                        and row['startkilo'] == inputArgs['startkilo'] and row['endkilo'] == inputArgs['endkilo']:
+                    result = row['equipmentID']
+            if result == 0:
+                raise NotFindEquipmentIDError(inputArgs=inputArgs)
+        except NotFindEquipmentIDError:
+            print()
+
+
+class TrafficVolumeDataParser(CSVParser.CSVParser):
+    def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
-        self.ETC_GateReferenceFileName = ETC_GateReferenceFileName
+        self.readCSVfile(method='dict')
 
-    #里程轉換成ETC和VD的ID
-    def mile2ID(self):
+    def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
+        '''EXAMPLE:
+        dateTime = %Y/%m/%d %H:%M
+        Direction = 北
+        TimeInterval =  2020-02-10 00:00
+        trafficVolumeDict = {31: 0, 32: 0, 41: 0, 42: 0, 5: 0}
+        '''
 
-        #ETC_ID對照表 [就參考這個ETC]
-        ETC_mile2ID = {}
-        referenceFile=os.path.join(os.getcwd(), self.fileRoute, self.ETC_GateReferenceFileName)
-        f = open(referenceFile, 'r', newline='')
-        reader = csv.reader(f)
-        for line in reader:
-            name = line[0]+line[1]+'_'+str(min(float(line[2]), float(line[3])))
-            ETC_mile2ID[name] = line[4]
+        trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0}
+        tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
 
-        f.close()
+        for item in self.CSVFileContent:
 
-        return ETC_mile2ID
+            if dateTime == datetime.strptime(item['TimeInterval'], '%Y-%m-%d %H:%M') \
+                    and gantryID == item['GantryID'] and direction == item['direction']:
+                tempResults.update({item['VehicleType']: item['Traffic']})
+            if len(tempResults) == 5:
+                # trafficVolumeDict collects 5 items means completion
+                break
+
+        if len(tempResults) < 5:
+            raise NotFindTrafficVolumeError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
+
+        trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
+        trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
+        trafficVolumeDict['T'] = int(tempResults['5'])
+
+        return trafficVolumeDict
 
 
-class Weather_Data_Parser(CSVParser.CSVParser):
+
+class WeatherDataParser(CSVParser.CSVParser):
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName)
 
-class Crash_Data_Parser(CSVParser.CSVParser):
-    def __init__(self, fileRoute, fileName):
-        super().__init__(fileRoute, fileName)
 
-    def find_paired_crash_data(self):
-        return 0
-
-    def writeCSVfile(self, method:str, newFileName:str, data):
-        print("123")
 
 
 if __name__ == '__main__':
@@ -91,13 +139,28 @@ if __name__ == '__main__':
     print(f"len = {len(freewayCSVContentDict[freeway+direction])}")
     print("save success!")
 
+    MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute='', fileName='ETC點位對照表_2公里_20220112.csv')
+    MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute='', fileName='天氣測站對照表_2公里_2019_2020.csv')
 
-    #ETC_Data_Parser(fileRoute=route, fileName=free)
+    for row in freewayCSVContentDict[freeway+direction]:
 
+        year = row[freewayCSVColumnNames.index('year')]
+        date = row[freewayCSVColumnNames.index('date')]
+        month = date[0:2]
+        day = date[3:]
+        starttime = row[freewayCSVColumnNames.index('starttime')]
 
+        startkilo = int(float(row[freewayCSVColumnNames.index('startkilo')]))
+        endkilo = int(float(row[freewayCSVColumnNames.index('endkilo')]))
 
+        gantryID = MiletoETagGantryConverter.get_equipementID(inputArgs={'freeway':freeway, 'direction':direction,
+                                                                         'startkilo':startkilo, 'endkilo': endkilo})
 
-
+        ETCDataRoute = os.path.join('TrafficVolume', 'M03', str(year), str(int(month))+'月', day+'日')
+        ETCDataName = day+'日.csv'
+        parser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
+        trafficVolumes = parser.get_trafficVolumes(dateTime=datetime.strptime(year + '/' + date + " " + starttime, '%Y/%m/%d %H:%M'),
+                                                   gantryID=gantryID, direction=direction)
 
 
 
@@ -141,11 +204,11 @@ if __name__ == '__main__':
     #
     #     #print(crashIndexList)
     #     return 0
-    #
-    # fillin_crash_data()
-    #
-    # csvParser.writeCSVfile(method='dict', newFileName=csvParser.fileName + '_addCrash.csv',
-    #                       data=freewayCSVContentDict[freeway+direction])
+
+    #fillin_crash_data()
+
+    csvParser.writeCSVfile(method='dict', newFileName=csvParser.fileName + '_addCrash.csv',
+                          data=freewayCSVContentDict[freeway+direction])
 
 
 
