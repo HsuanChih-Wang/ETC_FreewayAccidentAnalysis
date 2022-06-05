@@ -4,7 +4,7 @@ import CSVParser
 from datetime import datetime, timedelta
 import mysql.connector
 import bisect
-A = 1
+
 Freeway_info={'國道1號': ['北向', '南向'],
               '國道1號高架': ['北向', '南向'],
               '國道2號': ['西向', '東向'],
@@ -15,6 +15,8 @@ Freeway_info={'國道1號': ['北向', '南向'],
 freewayMaxMiles = {'國道1號': 100, '國道2號': 0, '國道3號': 110, '國道3甲號': 0, '國道5號': 0}
 
 freewayCSVContentDict = {'國道1號北': 0, '國道1號南': 0, '國道3號北': 0, '國道3號南': 0}
+
+covertDirectionToEng = {'北': 'N', '南': 'S'}
 
 
 
@@ -66,16 +68,15 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName) #Input: Reference File
-
-    def read_reference_file(self):
         super().readCSVfile(method='dict')
 
     def get_equipementID(self, inputArgs: dict):
         """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
         result = 0
+        directionEng = covertDirectionToEng[inputArgs['direction']]
         try:
             for row in self.CSVFileContent:
-                if row['freeway'] == inputArgs['freeway'] and row['direction'] == inputArgs['direction'] \
+                if row['freeway'] == inputArgs['freeway'] and row['direction'] == directionEng \
                         and row['startkilo'] == inputArgs['startkilo'] and row['endkilo'] == inputArgs['endkilo']:
                     result = row['equipmentID']
             if result == 0:
@@ -100,7 +101,6 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         TimeInterval =  2020-02-10 00:00
         trafficVolumeDict = {31: 0, 32: 0, 41: 0, 42: 0, 5: 0}
         '''
-
 
         tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
 
@@ -140,10 +140,13 @@ class WeatherDataParser(CSVParser.CSVParser):
 
 
 
-
 if __name__ == '__main__':
 
-    route = os.path.join('data', year, 'newCombinedCSV') #read: after combined CSV
+    year = '2020'
+    freeway = '國道1號'
+    direction = '北'
+
+    route = os.path.join('data', year, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
     csvParser = CSVParser.CSVParser(fileRoute=route, fileName=freeway + '_' + direction + '_new.csv')
     csvParser.readCSVfile(method='normal')  # Establish parser object and read csv file
     freewayCSVContentDict[freeway+direction] = csvParser.getCSVfileContent()  # get the content of the csv
@@ -151,8 +154,10 @@ if __name__ == '__main__':
     print(f"len = {len(freewayCSVContentDict[freeway+direction])}")
     print("save success!")
 
-    MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute='', fileName='ETC點位對照表_2公里_20220112.csv')
-    MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute='', fileName='天氣測站對照表_2公里_2019_2020.csv')
+    MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
+                                                            fileName='ETC點位對照表_2公里_20220112.csv')
+    MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
+                                                                fileName='天氣測站對照表_2公里_2019_2020.csv')
 
     for row in freewayCSVContentDict[freeway+direction]:
 
@@ -168,8 +173,8 @@ if __name__ == '__main__':
         gantryID = MiletoETagGantryConverter.get_equipementID(inputArgs={'freeway':freeway, 'direction':direction,
                                                                          'startkilo':startkilo, 'endkilo': endkilo})
 
-        ETCDataRoute = os.path.join('TrafficVolume', 'M03', str(year), str(int(month))+'月', day+'日')
-        ETCDataName = day+'日.csv'
+        ETCDataRoute = os.path.join('data', 'TrafficVolume', 'M03', str(year), str(int(month))+'月')
+        ETCDataName = str(int(day))+'日.csv'
         parser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
         trafficVolumes = parser.get_trafficVolumes(dateTime=datetime.strptime(year + '/' + date + " " + starttime, '%Y/%m/%d %H:%M'),
                                                    gantryID=gantryID, direction=direction)
