@@ -68,21 +68,42 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName) #Input: Reference File
-        super().readCSVfile(method='dict')
+        super().readCSVfile()
 
-    def get_equipementID(self, inputArgs: dict):
+    def get_equipmentID(self, inputArgs: dict):
+
         """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
-        result = 0
-        directionEng = covertDirectionToEng[inputArgs['direction']]
-        try:
-            for row in self.CSVFileContent:
-                if row['freeway'] == inputArgs['freeway'] and row['direction'] == directionEng \
-                        and row['startkilo'] == inputArgs['startkilo'] and row['endkilo'] == inputArgs['endkilo']:
-                    result = row['equipmentID']
-            if result == 0:
-                raise NotFindEquipmentIDError(inputArgs=inputArgs)
-        except NotFindEquipmentIDError:
-            print()
+
+        directionTransform = {'北': '北向', '南': '南向', '東': '東向', '西': '西向'}
+
+        inputArgs['direction'] = directionTransform[inputArgs['direction']]
+        equipmentID = self.CSVFileContent.loc[(self.CSVFileContent['freeway'] == inputArgs['freeway']) &
+                                         (self.CSVFileContent['direction'] == inputArgs['direction']) &
+                                         (self.CSVFileContent['startkilo'] == inputArgs['endkilo']) &
+                                         (self.CSVFileContent['endkilo'] == inputArgs['startkilo'])]['equipmentID']
+                                        # 注意: 此處 Startkilo 和 endkilo 設備對照表中 反過來才是正確的
+        if equipmentID.empty:
+            raise NotFindEquipmentIDError(inputArgs=inputArgs)
+        else:
+            equipmentID = equipmentID.tolist()[0]  # Convert to String
+            return equipmentID
+
+    def get_equipmentName(self, inputArgs: dict):
+        """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
+
+        directionTransform = {'北': '北向', '南': '南向', '東': '東向', '西': '西向'}
+
+        inputArgs['direction'] = directionTransform[inputArgs['direction']]
+        stationName = self.CSVFileContent.loc[(self.CSVFileContent['freeway'] == inputArgs['freeway']) &
+                                              (self.CSVFileContent['direction'] == inputArgs['direction']) &
+                                              (self.CSVFileContent['startkilo'] == inputArgs['endkilo']) &
+                                              (self.CSVFileContent['endkilo'] == inputArgs['startkilo'])]['stationName']
+        # 注意: 此處 Startkilo 和 endkilo 設備對照表中 反過來才是正確的
+        if stationName.empty:
+            raise NotFindEquipmentIDError(inputArgs=inputArgs)
+        else:
+            stationName = stationName.tolist()[0]  # Convert to String
+            return stationName
 
 
 class TrafficVolumeDataParser(CSVParser.CSVParser):
@@ -91,8 +112,20 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
-        self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0}
-        self.readCSVfile(method='dict')
+        self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0,
+                                  'volume': 0, 'PCU': 0, 'Speed_PCU': 0, 'Speed_volume': 0,
+                                  'Var_PCU': 0, 'Var_Speed_PCU': 0, 'Var_Speed_Volume': 0, 'Var_volume': 0}
+        self.readCSVfile()
+
+    def get_PCU_Volumes(self):
+        PCE = TrafficVolumeDataParser.PCU['S'] * self.trafficVolumeDict['S'] + \
+              TrafficVolumeDataParser.PCU['T'] * self.trafficVolumeDict['T'] + \
+              TrafficVolumeDataParser.PCU['L'] * self.trafficVolumeDict['L']
+        return PCE
+
+    def get_totalTrafficVolumes(self):
+        totalVolume = self.trafficVolumeDict['S'] + self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
+        return totalVolume
 
     def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
         '''EXAMPLE:
@@ -103,40 +136,31 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         '''
 
         tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
+        directionEng = covertDirectionToEng[direction]
+        result = self.CSVFileContent.loc[(self.CSVFileContent['TimeInterval'] == dateTime.strftime("%Y-%m-%d %H:%M")) &
+                                         (self.CSVFileContent['GantryID'] == gantryID) &
+                                         (self.CSVFileContent['Direction'] == directionEng)]
 
-        for item in self.CSVFileContent:
-
-            if dateTime == datetime.strptime(item['TimeInterval'], '%Y-%m-%d %H:%M') \
-                    and gantryID == item['GantryID'] and direction == item['direction']:
-                tempResults.update({item['VehicleType']: item['Traffic']})
-            if len(tempResults) == 5:
-                # trafficVolumeDict collects 5 items means completion
-                break
-
-        if len(tempResults) < 5:
+        if result.empty:
             raise NotFindTrafficVolumeError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
+
+        vehTypeList = result['VehicleType'].tolist()
+        trafficList = result['Traffic'].tolist()
+        for i in range(5):
+            tempResults.update({str(vehTypeList[i]): trafficList[i]})
 
         self.trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
         self.trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
         self.trafficVolumeDict['T'] = int(tempResults['5'])
+        self.trafficVolumeDict['PCU'] = self.get_PCU_Volumes()
+        self.trafficVolumeDict['volume'] = self.get_totalTrafficVolumes()
 
         return self.trafficVolumeDict
-
-    def get_PCU_Volumes(self):
-        PCE = TrafficVolumeDataParser.PCU['S'] * self.trafficVolumeDict['S'] + \
-              TrafficVolumeDataParser.PCU['T'] * self.trafficVolumeDict['T'] + \
-              TrafficVolumeDataParser.PCU['L'] * self.trafficVolumeDict['L']
-        return PCE
-
-    def get_totalVolumes(self):
-        totalVolume = self.trafficVolumeDict['S'] + self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
-        return totalVolume
-
-
 
 class WeatherDataParser(CSVParser.CSVParser):
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName)
+        super().readCSVfile()
 
 
 
@@ -148,7 +172,12 @@ if __name__ == '__main__':
 
     route = os.path.join('data', year, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
     csvParser = CSVParser.CSVParser(fileRoute=route, fileName=freeway + '_' + direction + '_new.csv')
-    csvParser.readCSVfile(method='normal')  # Establish parser object and read csv file
+    csvParser.readCSVfile(skiprows=[i for i in range(6, 5042500)]
+                          ) ##skiprows=[i for i in range(1, 5042300)] ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
+
+    #csvParser.readCSVfile(method='normal')  # Establish parser object and read csv file
+
+
     freewayCSVContentDict[freeway+direction] = csvParser.getCSVfileContent()  # get the content of the csv
     freewayCSVColumnNames = csvParser.getColunmnames()
     print(f"len = {len(freewayCSVContentDict[freeway+direction])}")
@@ -159,30 +188,50 @@ if __name__ == '__main__':
     MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
                                                                 fileName='天氣測站對照表_2公里_2019_2020.csv')
 
-    for row in freewayCSVContentDict[freeway+direction]:
+    for index, row in freewayCSVContentDict[freeway+direction].iterrows():
 
-        year = row[freewayCSVColumnNames.index('year')]
-        date = row[freewayCSVColumnNames.index('date')]
+        year = row['year']
+        date = row['date']
         month = date[0:2]
         day = date[3:]
-        starttime = row[freewayCSVColumnNames.index('starttime')]
+        starttime = row['starttime']
 
-        startkilo = int(float(row[freewayCSVColumnNames.index('startkilo')]))
-        endkilo = int(float(row[freewayCSVColumnNames.index('endkilo')]))
+        startkilo = int(float(row['startkilo']))
+        endkilo = int(float(row['endkilo']))
 
-        gantryID = MiletoETagGantryConverter.get_equipementID(inputArgs={'freeway':freeway, 'direction':direction,
-                                                                         'startkilo':startkilo, 'endkilo': endkilo})
+        gantryID = MiletoETagGantryConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
+                                                                         'startkilo': startkilo, 'endkilo': endkilo})
 
         ETCDataRoute = os.path.join('data', 'TrafficVolume', 'M03', str(year), str(int(month))+'月')
         ETCDataName = str(int(day))+'日.csv'
-        parser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
-        trafficVolumes = parser.get_trafficVolumes(dateTime=datetime.strptime(year + '/' + date + " " + starttime, '%Y/%m/%d %H:%M'),
+        trafficVolumesParser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
+        trafficVolumes = trafficVolumesParser.get_trafficVolumes(dateTime=datetime.strptime(str(year) + '/' + str(date) + " " + str(starttime), '%Y/%m/%d %H:%M'),
                                                    gantryID=gantryID, direction=direction)
 
+        freewayCSVContentDict[freeway+direction].at[index, 'volume_S'] = trafficVolumes['S']
+        freewayCSVContentDict[freeway+direction].at[index, 'volume_L'] = trafficVolumes['L']
+        freewayCSVContentDict[freeway+direction].at[index, 'volume_T'] = trafficVolumes['T']
+        freewayCSVContentDict[freeway+direction].at[index, 'volume'] = trafficVolumes['volume']
+        freewayCSVContentDict[freeway+direction].at[index, 'PCU'] = trafficVolumes['PCU']
 
-        row[freewayCSVColumnNames.index('volume_S')] = trafficVolumes['S']
-        row[freewayCSVColumnNames.index('volume_L')] = trafficVolumes['L']
-        row[freewayCSVColumnNames.index('volume_T')] = trafficVolumes['T']
+        stationID = MiletoWeatherStationConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
+                                                                              'startkilo': startkilo, 'endkilo': endkilo})
+        stationName = MiletoWeatherStationConverter.get_equipmentName(inputArgs={'freeway': freeway, 'direction': direction,
+                                                                               'startkilo': startkilo, 'endkilo': endkilo})
+
+        rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'rain')
+        rainDataName = 'Auto_rain_' + str(year-1911) + '_' + stationID
+        windDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'windspeed')
+        windDataName = str(year-1911) + stationName
+
+        ## 0606今天到這邊~~~
+        WeatherDataParser(fileRoute=rainDataRoute, fileName=rainDataName)
+
+
+
+
+
+    freewayCSVContentDict[freeway+direction].to_csv('new1111.csv')
 
 
     #mysqlConnector = MysqlConnector(host='localhost', user='root', password='wang71026', database='freeway')
@@ -227,8 +276,7 @@ if __name__ == '__main__':
 
     #fillin_crash_data()
 
-    csvParser.writeCSVfile(method='dict', newFileName=csvParser.fileName + '_addCrash.csv',
-                          data=freewayCSVContentDict[freeway+direction])
+
 
 
 

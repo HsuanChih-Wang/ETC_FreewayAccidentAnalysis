@@ -45,8 +45,8 @@ a = {'r': 4}
 # print(nums1.intersection(nums2))
 # print(nums2.intersection(nums1))
 
-x = '2020-02-10 00:00'
-y = '2020/02/10 00:00'
-from datetime import datetime
-if datetime.strptime(x, '%Y-%m-%d %H:%M') == datetime.strptime(y, '%Y/%m/%d %H:%M'):
-    print("true")
+# x = '2020-02-10 00:00'
+# y = '2020/02/10 00:00'
+# from datetime import datetime
+# if datetime.strptime(x, '%Y-%m-%d %H:%M') == datetime.strptime(y, '%Y/%m/%d %H:%M'):
+#     print("true")

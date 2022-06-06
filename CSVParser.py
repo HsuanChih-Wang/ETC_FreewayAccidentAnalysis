@@ -1,5 +1,6 @@
 import csv
 import os
+import pandas as pd
 
 # 模組設計以"原有處理後資料內容取"為主
 
@@ -13,6 +14,7 @@ colunmName = ['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime', 'c
               'volume_T', 'volume', 'PCU', 'Speed_volume', 'Speed_PCU', 'heavy_rate',
               'Var_volume', 'Var_PCU', 'Var_Speed_volume', 'Var_Speed_PCU']
 
+
 class CSVParser():
 
     def __init__(self, fileRoute, fileName):
@@ -21,7 +23,7 @@ class CSVParser():
         self.CSVFileContent = []
         self.CSVFileColumnNames = 0
 
-    def readCSVfile(self, method):
+    def __readCSVfile(self, method):
         try:
             with open(os.path.join(self.fileRoute, self.fileName), 'r', encoding='UTF-8') as file:
                 if method == 'dict':
@@ -37,9 +39,21 @@ class CSVParser():
 
         except FileNotFoundError:
             print(f'file directory: {os.path.join(self.fileRoute, self.fileName)} not found!')
-            #raise FileNotFoundError
+            raise FileNotFoundError
+        #raise FileNotFoundError
 
-    def writeCSVfile(self, method: str, newFileName: str, data):
+    def readCSVfile(self, **kwargs):
+
+        try:
+            path = os.path.join(self.fileRoute, self.fileName)
+            self.CSVFileContent = pd.read_csv(path, **kwargs)
+            self.CSVFileColumnNames = self.CSVFileContent.columns.values.tolist()
+
+        except FileNotFoundError:
+            print(f'file directory: {os.path.join(self.fileRoute, self.fileName)} not found!')
+            raise FileNotFoundError
+
+    def __writeCSVfile(self, method: str, newFileName: str, data):
         if method == 'normal':
             with open(os.path.join(self.fileRoute, newFileName), 'w', encoding='UTF-8', newline='') as file:
                 writer = csv.writer(file)  # create the csv writer
@@ -50,6 +64,9 @@ class CSVParser():
                 writer.writerows(data)  # "data" -> a list contains multiple data
         else:
             print("Method does not exist!")
+
+    # def writeCSVfile(self, newfileName, data, **kwargs):
+    #     data.to_csv(newfileName, **kwargs)
 
     def getCSVfileContent(self):
         return self.CSVFileContent
