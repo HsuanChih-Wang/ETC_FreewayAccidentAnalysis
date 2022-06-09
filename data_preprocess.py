@@ -1,6 +1,7 @@
 import csv
 import os
 import CSVParser
+import pandas as pd
 from datetime import datetime, timedelta
 import mysql.connector
 import bisect
@@ -63,6 +64,13 @@ class NotFindTrafficVolumeError(Exception):
         super().__init__(self.message)
     pass
 
+class NotFindWindSpeedError(Exception):
+    def __init__(self, inputArgs, message="Can not find Windspeed, the input datetime is = "):
+        self.inputArgs = inputArgs
+        self.message = message + inputArgs
+        super().__init__(self.message)
+    pass
+
 
 class MileToEquipementIDConverter(CSVParser.CSVParser):
 
@@ -109,7 +117,6 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 class TrafficVolumeDataParser(CSVParser.CSVParser):
 
     PCU = {'S': 1.0, 'L': 1.6, 'T': 2.0}
-
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
         self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0,
@@ -157,11 +164,38 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
         return self.trafficVolumeDict
 
-class WeatherDataParser(CSVParser.CSVParser):
+class RainDataParser(CSVParser.CSVParser):
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName)
-        super().readCSVfile()
 
+    def get_rainfall(self, startTime: datetime, endTime: datetime):
+        condition = (pd.to_datetime(self.CSVFileContent['DTIME']) >= startTime) & \
+                    (pd.to_datetime(self.CSVFileContent['DTIME']) <= endTime)
+        result = self.CSVFileContent.loc[condition]
+        if result.empty:
+            rainfall = 0.0
+        else:
+            rainfall = result['RN'].sum()
+
+        return rainfall
+
+class WindDataParser(CSVParser.CSVParser):
+    def __init__(self, fileRoute, fileName):
+        super().__init__(fileRoute, fileName)
+
+    def get_windspeed(self, endtime: datetime):
+        self.CSVFileContent['時間'] = self.CSVFileContent['時間'].replace(['24:00:00'], '00:00') #一個坑
+        condition = (pd.to_datetime('20' + self.CSVFileContent['日期'] + " " + self.CSVFileContent['時間']) == endtime) | \
+                    (pd.to_datetime('20' + self.CSVFileContent['日期'] + ' ' + self.CSVFileContent['時間']) == endtime + timedelta(minutes=5))
+
+        result = self.CSVFileContent.loc[condition]
+        if result.empty:
+            raise NotFindWindSpeedError(inputArgs=endtime.strftime('%Y/%m/%d %H:%M'))
+        else:
+            windspeed = result['風向'].tolist()[0]
+
+
+        return windspeed
 
 
 if __name__ == '__main__':
@@ -195,9 +229,15 @@ if __name__ == '__main__':
         month = date[0:2]
         day = date[3:]
         starttime = row['starttime']
+        endtime = row['endtime']
+        starttimeDTform = datetime.strptime(str(year) + '/' + str(date) + " " + str(starttime), '%Y/%m/%d %H:%M')
+        endtimeDTform = datetime.strptime(str(year) + '/' + str(date) + " " + str(endtime), '%Y/%m/%d %H:%M')
+
+
 
         startkilo = int(float(row['startkilo']))
         endkilo = int(float(row['endkilo']))
+
 
         gantryID = MiletoETagGantryConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
                                                                          'startkilo': startkilo, 'endkilo': endkilo})
@@ -205,8 +245,7 @@ if __name__ == '__main__':
         ETCDataRoute = os.path.join('data', 'TrafficVolume', 'M03', str(year), str(int(month))+'月')
         ETCDataName = str(int(day))+'日.csv'
         trafficVolumesParser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
-        trafficVolumes = trafficVolumesParser.get_trafficVolumes(dateTime=datetime.strptime(str(year) + '/' + str(date) + " " + str(starttime), '%Y/%m/%d %H:%M'),
-                                                   gantryID=gantryID, direction=direction)
+        trafficVolumes = trafficVolumesParser.get_trafficVolumes(dateTime=starttimeDTform, gantryID=gantryID, direction=direction)
 
         freewayCSVContentDict[freeway+direction].at[index, 'volume_S'] = trafficVolumes['S']
         freewayCSVContentDict[freeway+direction].at[index, 'volume_L'] = trafficVolumes['L']
@@ -214,24 +253,34 @@ if __name__ == '__main__':
         freewayCSVContentDict[freeway+direction].at[index, 'volume'] = trafficVolumes['volume']
         freewayCSVContentDict[freeway+direction].at[index, 'PCU'] = trafficVolumes['PCU']
 
+
+        ### Weather data parse
         stationID = MiletoWeatherStationConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
                                                                               'startkilo': startkilo, 'endkilo': endkilo})
         stationName = MiletoWeatherStationConverter.get_equipmentName(inputArgs={'freeway': freeway, 'direction': direction,
                                                                                'startkilo': startkilo, 'endkilo': endkilo})
 
         rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'rain')
-        rainDataName = 'Auto_rain_' + str(year-1911) + '_' + stationID
+        rainDataName = 'Auto_rain_' + str(year-1911) + '_' + stationID[:-1] + '.csv'  #stationID 最後多一個0去掉 才是正確檔名
         windDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'windspeed')
-        windDataName = str(year-1911) + stationName
+        windDataName = str(year-1911) + stationName + '.csv'
+        ## rain
+        rainDataParser = RainDataParser(fileRoute=rainDataRoute, fileName=rainDataName)
+        rainDataParser.readCSVfile(usecols=['DTIME', 'RN'])  #只挑兩個有用到的欄位
+        rainfall = rainDataParser.get_rainfall(startTime=starttimeDTform, endTime=endtimeDTform)
 
-        ## 0606今天到這邊~~~
-        WeatherDataParser(fileRoute=rainDataRoute, fileName=rainDataName)
+        freewayCSVContentDict[freeway+direction].at[index, 'rain'] = rainfall
 
-
-
+        ## windspeed
+        windspeedDataParser = WindDataParser(fileRoute=windDataRoute, fileName=windDataName)
+        windspeedDataParser.readCSVfile(usecols=['日期', '時間', '風速', '風向'])
+        windspeed = windspeedDataParser.get_windspeed(endtime=endtimeDTform)
+        freewayCSVContentDict[freeway+direction].at[index, 'windspeed'] = windspeed
 
 
     freewayCSVContentDict[freeway+direction].to_csv('new1111.csv')
+    print("ALL TASKS DONE!")
+    os.system('pause')
 
 
     #mysqlConnector = MysqlConnector(host='localhost', user='root', password='wang71026', database='freeway')

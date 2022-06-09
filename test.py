@@ -50,3 +50,7 @@ a = {'r': 4}
 # from datetime import datetime
 # if datetime.strptime(x, '%Y-%m-%d %H:%M') == datetime.strptime(y, '%Y/%m/%d %H:%M'):
 #     print("true")
+
+z = 'abcdefg'
+
+print(z[:-1])
