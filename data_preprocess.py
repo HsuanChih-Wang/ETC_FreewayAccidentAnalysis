@@ -2,9 +2,10 @@ import csv
 import os
 import CSVParser
 import pandas as pd
+import numpy as np
+import calendar
 from datetime import datetime, timedelta
 import mysql.connector
-import bisect
 
 Freeway_info={'國道1號': ['北向', '南向'],
               '國道1號高架': ['北向', '南向'],
@@ -19,6 +20,21 @@ freewayCSVContentDict = {'國道1號北': 0, '國道1號南': 0, '國道3號北'
 
 covertDirectionToEng = {'北': 'N', '南': 'S'}
 
+rainDataParserDict = {}
+rainStationIDList = np.array(['C0A53', 'C0A54', 'C0ACA', 'C0AD5', 'C0AH0', 'C0AH1',
+                    'C0C54', 'C0C62', 'C0C65', 'C0D48', 'C0D56', 'C0D57',
+                    'C0D65', 'C0U78', 'C0U99'])
+
+windDataParserDict = {}
+windStationIDList = np.array(['五結', '員山', '四堵', '坪林', '大園',
+                     '平鎮', '打鐵坑', '新莊', '永和', '汐止',
+                     '湖口', '竹東', '蘆竹', '香山', '鶯歌'])
+
+etagDataParserDict = {1: {}, 2: {}, 3: {}, 4: {}, 5: {}, 6: {},
+                      7: {}, 8: {}, 9: {}, 10: {}, 11: {}, 12: {}}
+
+# etagMonthList = np.array(['1月', '2月', '3月', '4月', '5月', '6月'
+#                           '7月', '8月', '9月', '10月', '11月', '12月'])
 
 
 class MysqlConnector():
@@ -79,22 +95,28 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
         super().readCSVfile()
 
     def get_equipmentID(self, inputArgs: dict):
-
         """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
-
         directionTransform = {'北': '北向', '南': '南向', '東': '東向', '西': '西向'}
 
         inputArgs['direction'] = directionTransform[inputArgs['direction']]
-        equipmentID = self.CSVFileContent.loc[(self.CSVFileContent['freeway'] == inputArgs['freeway']) &
-                                         (self.CSVFileContent['direction'] == inputArgs['direction']) &
-                                         (self.CSVFileContent['startkilo'] == inputArgs['endkilo']) &
-                                         (self.CSVFileContent['endkilo'] == inputArgs['startkilo'])]['equipmentID']
-                                        # 注意: 此處 Startkilo 和 endkilo 設備對照表中 反過來才是正確的
-        if equipmentID.empty:
-            raise NotFindEquipmentIDError(inputArgs=inputArgs)
-        else:
-            equipmentID = equipmentID.tolist()[0]  # Convert to String
+        # equipmentID = self.CSVFileContent.at[(self.CSVFileContent['freeway'] == inputArgs['freeway']) &
+        #                                  (self.CSVFileContent['direction'] == inputArgs['direction']) &
+        #                                  (self.CSVFileContent['startkilo'] == inputArgs['endkilo']) &
+        #                                  (self.CSVFileContent['endkilo'] == inputArgs['startkilo'])]['equipmentID']
+
+        c1 = (self.CSVFileContent.freeway == inputArgs['freeway'])
+        c2 = (self.CSVFileContent.direction == inputArgs['direction'])
+        c3 = (self.CSVFileContent.startkilo == inputArgs['endkilo'])
+        c4 = (self.CSVFileContent.endkilo == inputArgs['startkilo'])
+        # 注意: 此處 Startkilo 和 endkilo 設備對照表中 反過來才是正確的
+
+        index = (c1 & c2 & c3 & c4).idxmax()
+        equipmentID = self.CSVFileContent.at[index, 'equipmentID']
+
+        if equipmentID:
             return equipmentID
+        else:
+            raise NotFindEquipmentIDError(inputArgs=inputArgs)
 
     def get_equipmentName(self, inputArgs: dict):
         """inputArgs = ['freeway': a, 'direction':b, 'startkilo':c, 'endkilo':d]"""
@@ -117,6 +139,7 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 class TrafficVolumeDataParser(CSVParser.CSVParser):
 
     PCU = {'S': 1.0, 'L': 1.6, 'T': 2.0}
+
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
         self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0,
@@ -134,7 +157,7 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         totalVolume = self.trafficVolumeDict['S'] + self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
         return totalVolume
 
-    def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
+    def __get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
         '''EXAMPLE:
         dateTime = %Y/%m/%d %H:%M
         Direction = 北
@@ -144,9 +167,11 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
         tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
         directionEng = covertDirectionToEng[direction]
-        result = self.CSVFileContent.loc[(self.CSVFileContent['TimeInterval'] == dateTime.strftime("%Y-%m-%d %H:%M")) &
-                                         (self.CSVFileContent['GantryID'] == gantryID) &
-                                         (self.CSVFileContent['Direction'] == directionEng)]
+
+        c1 = (self.CSVFileContent['TimeInterval'] == dateTime.strftime("%Y-%m-%d %H:%M"))
+        c2 = (self.CSVFileContent['GantryID'] == gantryID)
+        c3 = (self.CSVFileContent['Direction'] == directionEng)
+        result = self.CSVFileContent.loc[c1 & c2 & c3]
 
         if result.empty:
             raise NotFindTrafficVolumeError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
@@ -164,18 +189,49 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
         return self.trafficVolumeDict
 
+    def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
+        tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
+        directionEng = covertDirectionToEng[direction]
+
+        c1 = (self.CSVFileContent['TimeInterval'] == dateTime.strftime("%Y-%m-%d %H:%M"))
+        c2 = (self.CSVFileContent['GantryID'] == gantryID)
+        c3 = (self.CSVFileContent['Direction'] == directionEng)
+        indexList = self.CSVFileContent.index[(c1 & c2 & c3)].tolist()
+
+        if not indexList:
+            raise NotFindTrafficVolumeError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
+
+        vehTypeList = []
+        trafficList = []
+        for index in indexList:
+            vehTypeList.append(self.CSVFileContent.at[index, 'VehicleType'])
+            trafficList.append(self.CSVFileContent.at[index, 'Traffic'])
+        for i in np.arange(5):
+            tempResults.update({str(vehTypeList[i]): trafficList[i]})
+        self.trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
+        self.trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
+        self.trafficVolumeDict['T'] = int(tempResults['5'])
+        self.trafficVolumeDict['PCU'] = self.get_PCU_Volumes()
+        self.trafficVolumeDict['volume'] = self.get_totalTrafficVolumes()
+
+        return self.trafficVolumeDict
+
 class RainDataParser(CSVParser.CSVParser):
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute, fileName)
 
     def get_rainfall(self, startTime: datetime, endTime: datetime):
-        condition = (pd.to_datetime(self.CSVFileContent['DTIME']) >= startTime) & \
-                    (pd.to_datetime(self.CSVFileContent['DTIME']) <= endTime)
-        result = self.CSVFileContent.loc[condition]
-        if result.empty:
+        condition1 = (pd.to_datetime(self.CSVFileContent['DTIME']) >= startTime)
+        condition2 = (pd.to_datetime(self.CSVFileContent['DTIME']) <= endTime)
+        indexList = self.CSVFileContent.index[(condition1 & condition2)].tolist()
+        if not indexList:
             rainfall = 0.0
-        else:
-            rainfall = result['RN'].sum()
+            return rainfall
+        rainfallList = []
+        for index in indexList:
+            rainfallList.append(self.CSVFileContent.at[index, 'RN'])
+
+        rainfall = np.sum(rainfallList)
 
         return rainfall
 
@@ -185,100 +241,140 @@ class WindDataParser(CSVParser.CSVParser):
 
     def get_windspeed(self, endtime: datetime):
         self.CSVFileContent['時間'] = self.CSVFileContent['時間'].replace(['24:00:00'], '00:00') #一個坑
-        condition = (pd.to_datetime('20' + self.CSVFileContent['日期'] + " " + self.CSVFileContent['時間']) == endtime) | \
-                    (pd.to_datetime('20' + self.CSVFileContent['日期'] + ' ' + self.CSVFileContent['時間']) == endtime + timedelta(minutes=5))
 
-        result = self.CSVFileContent.loc[condition]
-        if result.empty:
-            raise NotFindWindSpeedError(inputArgs=endtime.strftime('%Y/%m/%d %H:%M'))
-        else:
-            windspeed = result['風向'].tolist()[0]
-
-
+        index = (pd.to_datetime('20' + self.CSVFileContent['日期'] + " " + self.CSVFileContent['時間']) >= endtime).idxmax()
+        #挑出 >= endTime 最接近的那一個時間點
+        # if not index:
+        #     raise NotFindWindSpeedError(inputArgs=endtime.strftime('%Y/%m/%d %H:%M'))
+        # else:
+        windspeed = self.CSVFileContent.at[index, '風速']
         return windspeed
 
 
 if __name__ == '__main__':
 
-    year = '2020'
-    freeway = '國道1號'
+    YEAR = '2020'
+    FREEWAY = '國道1號'
     direction = '北'
+    DOWN_LIMIT = 5042319
+    UPPER_LIMIT = 5042300
+    MONTH = 12
 
-    route = os.path.join('data', year, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
-    csvParser = CSVParser.CSVParser(fileRoute=route, fileName=freeway + '_' + direction + '_new.csv')
-    csvParser.readCSVfile(skiprows=[i for i in range(6, 5042500)]
-                          ) ##skiprows=[i for i in range(1, 5042300)] ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
+    def store_rainCSVData():
+        rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(YEAR), 'rain')
+        for rainStationID in rainStationIDList:
+            rainDataName = 'Auto_rain_' + str(int(YEAR)-1911) + '_' + rainStationID + '.csv'
+            rainDataParser = RainDataParser(fileRoute=rainDataRoute, fileName=rainDataName)
+            rainDataParser.readCSVfile(usecols=['DTIME', 'RN'])  #只挑兩個有用到的欄位
+            rainDataParserDict.update({rainStationID: rainDataParser})
+        print("Load RAIN CSV DATA DONE!")
+        return 0
 
-    #csvParser.readCSVfile(method='normal')  # Establish parser object and read csv file
+    def store_windCSVData():
+        windDataRoute = os.path.join('data', 'Central Weather Bureau', str(YEAR), 'windspeed')
+        for windStationID in windStationIDList:
+            windDataName = str(int(YEAR)-1911) + windStationID + '.csv'
+            windspeedDataParser = WindDataParser(fileRoute=windDataRoute, fileName=windDataName)
+            windspeedDataParser.readCSVfile(usecols=['日期', '時間', '風速', '風向'])
+            windDataParserDict.update({windStationID: windspeedDataParser})
+        print("Load WIND CSV DATA DONE!")
+        return 0
+
+    def store_etagCSVData(year):
+        for month in np.arange(1, MONTH + 1):
+            numberOfDays = calendar.monthrange(int(YEAR), month)[1]
+            for day in np.arange(1, numberOfDays + 1):
+                MonthInString = str(int(month))+'月'
+                ETCDataRoute = os.path.join('data', 'TrafficVolume', 'M03', str(year), MonthInString)
+                ETCDataName = str(int(day))+'日.csv'
+                trafficVolumeDataParser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
+                etagDataParserDict[month].update({day: trafficVolumeDataParser})
+        print("Load ETAG DATA DONE!")
+        return 0
 
 
-    freewayCSVContentDict[freeway+direction] = csvParser.getCSVfileContent()  # get the content of the csv
+    route = os.path.join('data', YEAR, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
+    csvParser = CSVParser.CSVParser(fileRoute=route, fileName=FREEWAY + '_' + direction + '_new.csv')
+    csvParser.readCSVfile(skiprows=[i for i in np.arange(DOWN_LIMIT, UPPER_LIMIT)]) ##skiprows=[i for i in range(1, 5042300)] ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
+
+    freewayCSVContentDict[FREEWAY+direction] = csvParser.getCSVfileContent()  # get the content of the csv
     freewayCSVColumnNames = csvParser.getColunmnames()
-    print(f"len = {len(freewayCSVContentDict[freeway+direction])}")
+    print(f"len = {len(freewayCSVContentDict[FREEWAY+direction])}")
     print("save success!")
 
     MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
                                                             fileName='ETC點位對照表_2公里_20220112.csv')
     MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
                                                                 fileName='天氣測站對照表_2公里_2019_2020.csv')
+    store_rainCSVData()  #儲存雨量測站表
+    store_windCSVData()  #儲存風向測站表
+    store_etagCSVData(year=YEAR) #儲存etag資料
 
-    for index, row in freewayCSVContentDict[freeway+direction].iterrows():
 
-        year = row['year']
-        date = row['date']
+    def new_start(df):
+        year = df['year']
+        date = df['date']
         month = date[0:2]
         day = date[3:]
+        starttime = df['starttime']
+        endtime = df['endtime']
+        starttimeDTform = pd.to_datetime(str(year) + '/' + str(date) + " " + str(starttime), '%Y/%m/%d %H:%M')
+        endtimeDTform = pd.to_datetime(str(year) + '/' + str(date) + " " + str(endtime), '%Y/%m/%d %H:%M')
+
+        return 0
+
+
+    def start(row):
+        index = row['index']
+        print(f'index = {index}')
+
+        # decompose data
+        year = row['year'] #year
+        date = row['date'] #date
+        month = date[0:2] #month
+        day = date[3:] #day
         starttime = row['starttime']
         endtime = row['endtime']
-        starttimeDTform = datetime.strptime(str(year) + '/' + str(date) + " " + str(starttime), '%Y/%m/%d %H:%M')
-        endtimeDTform = datetime.strptime(str(year) + '/' + str(date) + " " + str(endtime), '%Y/%m/%d %H:%M')
+        starttimeDTform = pd.to_datetime(str(year) + '/' + str(date) + " " + str(starttime)) #轉成PD格式的dateTime
+        endtimeDTform = pd.to_datetime(str(year) + '/' + str(date) + " " + str(endtime))
+        startkilo = float(row['startkilo'])
+        endkilo = float(row['endkilo'])
 
-
-
-        startkilo = int(float(row['startkilo']))
-        endkilo = int(float(row['endkilo']))
-
-
-        gantryID = MiletoETagGantryConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
+        ### Read Traffic Volumes
+        # get ETag GantryID0
+        gantryID = MiletoETagGantryConverter.get_equipmentID(inputArgs={'freeway': FREEWAY, 'direction': direction,
                                                                          'startkilo': startkilo, 'endkilo': endkilo})
+        trafficVolumes = etagDataParserDict[int(month)][int(day)].get_trafficVolumes(dateTime=starttimeDTform, gantryID=gantryID, direction=direction)
 
-        ETCDataRoute = os.path.join('data', 'TrafficVolume', 'M03', str(year), str(int(month))+'月')
-        ETCDataName = str(int(day))+'日.csv'
-        trafficVolumesParser = TrafficVolumeDataParser(fileRoute=ETCDataRoute, fileName=ETCDataName)
-        trafficVolumes = trafficVolumesParser.get_trafficVolumes(dateTime=starttimeDTform, gantryID=gantryID, direction=direction)
-
-        freewayCSVContentDict[freeway+direction].at[index, 'volume_S'] = trafficVolumes['S']
-        freewayCSVContentDict[freeway+direction].at[index, 'volume_L'] = trafficVolumes['L']
-        freewayCSVContentDict[freeway+direction].at[index, 'volume_T'] = trafficVolumes['T']
-        freewayCSVContentDict[freeway+direction].at[index, 'volume'] = trafficVolumes['volume']
-        freewayCSVContentDict[freeway+direction].at[index, 'PCU'] = trafficVolumes['PCU']
-
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_S'] = trafficVolumes['S']
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_L'] = trafficVolumes['L']
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_T'] = trafficVolumes['T']
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'volume'] = trafficVolumes['volume']
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'PCU'] = trafficVolumes['PCU']
 
         ### Weather data parse
-        stationID = MiletoWeatherStationConverter.get_equipmentID(inputArgs={'freeway': freeway, 'direction': direction,
+        stationID = MiletoWeatherStationConverter.get_equipmentID(inputArgs={'freeway': FREEWAY, 'direction': direction,
                                                                               'startkilo': startkilo, 'endkilo': endkilo})
-        stationName = MiletoWeatherStationConverter.get_equipmentName(inputArgs={'freeway': freeway, 'direction': direction,
+        stationName = MiletoWeatherStationConverter.get_equipmentName(inputArgs={'freeway': FREEWAY, 'direction': direction,
                                                                                'startkilo': startkilo, 'endkilo': endkilo})
 
-        rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'rain')
-        rainDataName = 'Auto_rain_' + str(year-1911) + '_' + stationID[:-1] + '.csv'  #stationID 最後多一個0去掉 才是正確檔名
-        windDataRoute = os.path.join('data', 'Central Weather Bureau', str(year), 'windspeed')
-        windDataName = str(year-1911) + stationName + '.csv'
         ## rain
-        rainDataParser = RainDataParser(fileRoute=rainDataRoute, fileName=rainDataName)
-        rainDataParser.readCSVfile(usecols=['DTIME', 'RN'])  #只挑兩個有用到的欄位
-        rainfall = rainDataParser.get_rainfall(startTime=starttimeDTform, endTime=endtimeDTform)
-
-        freewayCSVContentDict[freeway+direction].at[index, 'rain'] = rainfall
+        rainfall = rainDataParserDict[stationID[:-1]].get_rainfall(startTime=starttimeDTform, endTime=endtimeDTform)
+        #stationID 最後多一個0去掉 才是正確檔名
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'rain'] = rainfall
 
         ## windspeed
-        windspeedDataParser = WindDataParser(fileRoute=windDataRoute, fileName=windDataName)
-        windspeedDataParser.readCSVfile(usecols=['日期', '時間', '風速', '風向'])
-        windspeed = windspeedDataParser.get_windspeed(endtime=endtimeDTform)
-        freewayCSVContentDict[freeway+direction].at[index, 'windspeed'] = windspeed
+        windspeed = windDataParserDict[stationName].get_windspeed(endtime=endtimeDTform)
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'windspeed'] = windspeed
 
+    # The slowest way
+    # for index, row in freewayCSVContentDict[freeway+direction].iterrows():
+    #     start(row=row, index=index)
 
-    freewayCSVContentDict[freeway+direction].to_csv('new1111.csv')
+    freewayCSVContentDict[FREEWAY+direction]['index'] = np.arange(0, freewayCSVContentDict[FREEWAY+direction].shape[0])
+    freewayCSVContentDict[FREEWAY+direction].apply(start, axis=1, raw=True) #axis = 1 -> tell panda.apply() to iterate each row
+
+    freewayCSVContentDict[FREEWAY+direction].to_csv(str(DOWN_LIMIT) + '_' + str(UPPER_LIMIT) + '.csv', enconding='utf-8-sig')
     print("ALL TASKS DONE!")
     os.system('pause')
 

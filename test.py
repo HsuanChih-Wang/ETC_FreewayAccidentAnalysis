@@ -19,7 +19,6 @@ print(c)
 a = {'r': 4}
 
 
-
 # def find(allItems, id):
 #     return allItems[id]
 #
@@ -50,7 +49,27 @@ a = {'r': 4}
 # from datetime import datetime
 # if datetime.strptime(x, '%Y-%m-%d %H:%M') == datetime.strptime(y, '%Y/%m/%d %H:%M'):
 #     print("true")
+import numpy as np
+import pandas as pd
 
-z = 'abcdefg'
+x = np.array(['五結', '員山', '四堵', '坪林', '大園',
+          '平鎮', '打鐵坑', '新莊', '永和', '汐止',
+          '湖口', '竹東', '蘆竹', '香山', '鶯歌'])
 
-print(z[:-1])
+# for item in x:
+#     print(item)
+
+# for i in np.arange(10, 20):
+#     print(i)
+
+import calendar
+
+print(calendar.monthrange(2022, 1)[1])
+print("1111")
+for day in np.arange(1, calendar.monthrange(2022, 1)[1]+1):
+    print(day)
+
+
+x = np.array([])
+x = np.append(x, [1,2,3])
+print(x)

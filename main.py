@@ -34,13 +34,13 @@ def get_count(x: pd.core.frame.DataFrame) -> int:
 
 
 # Load ------------------------------------------
-data = pd.read_csv("data/freeway_no1_north.csv")
+data = pd.read_csv("data/500000.csv", encoding='utf-8')
 # Preprocessing -----------------
 print(data.columns)
 
 print(data['cement'])
-data.drop(['pavement', 'cement', 'remark', 'upslope', 'downslope', 'minradiuslength',
-           'one', 'Var_windspeed', 'Var_rain', 'volume', 'Var_volume', 'Var_PCU',
+data.drop(['endTime_millionSec', 'startTime_millionSec', 'pavement', 'cement', 'remark', 'upslope', 'downslope',
+           'minradiuslength', 'one', 'Var_windspeed', 'Var_rain', 'Var_volume', 'Var_PCU',
            'Var_Speed_volume', 'Var_Speed_PCU'], axis=1, inplace=True)
 print(data.columns)
 data.drop(['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime'], axis=1, inplace=True)
