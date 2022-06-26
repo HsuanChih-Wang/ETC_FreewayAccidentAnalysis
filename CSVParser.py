@@ -20,6 +20,7 @@ class CSVParser():
     def __init__(self, fileRoute, fileName):
         self.fileRoute = fileRoute
         self.fileName = fileName
+        self.path = os.path.join(self.fileRoute, self.fileName)
         self.CSVFileContent = []
         self.CSVFileColumnNames = 0
 
@@ -45,8 +46,7 @@ class CSVParser():
     def readCSVfile(self, **kwargs):
 
         try:
-            path = os.path.join(self.fileRoute, self.fileName)
-            self.CSVFileContent = pd.read_csv(path, **kwargs)
+            self.CSVFileContent = pd.read_csv(self.path, **kwargs)
             self.CSVFileColumnNames = self.CSVFileContent.columns.values.tolist()
 
         except FileNotFoundError:
@@ -73,6 +73,10 @@ class CSVParser():
 
     def getColunmnames(self):
         return self.CSVFileColumnNames
+
+    def get_CSVFileOriginalNumberOfRows(self):
+        numberOfRows = len(pd.read_csv(self.path))
+        return numberOfRows
 
     def columnName_to_index(self, columnName):
         try:

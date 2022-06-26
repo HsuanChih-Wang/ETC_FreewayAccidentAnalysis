@@ -142,9 +142,10 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
-        self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0,
-                                  'volume': 0, 'PCU': 0, 'Speed_PCU': 0, 'Speed_volume': 0,
-                                  'Var_PCU': 0, 'Var_Speed_PCU': 0, 'Var_Speed_Volume': 0, 'Var_volume': 0}
+        self.trafficVolumeDict = {'S': 0, 'L': 0, 'T': 0,'volume': 0, 'PCU': 0,
+                                  'Speed_PCU': 0, 'Speed_volume': 0,
+                                  'Var_PCU': 0, 'Var_Speed_PCU': 0, 'Var_Speed_Volume': 0, 'Var_volume': 0,
+                                  'heavy_rate': 0}
         self.readCSVfile()
 
     def get_PCU_Volumes(self):
@@ -156,6 +157,18 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
     def get_totalTrafficVolumes(self):
         totalVolume = self.trafficVolumeDict['S'] + self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
         return totalVolume
+
+    def get_heavyRate(self):
+        heavyVehicleVolume = self.trafficVolumeDict['L'] + self.trafficVolumeDict['T']
+        totalVolume = self.trafficVolumeDict['L'] + self.trafficVolumeDict['T'] + self.trafficVolumeDict['S']
+
+        try:
+            heavyRate = round((heavyVehicleVolume / totalVolume), 3)
+        except ZeroDivisionError:
+            print(f"ZeroDivisionError! round({heavyVehicleVolume} / {totalVolume}, 3)")
+            heavyRate = 0
+
+        return heavyRate
 
     def __get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
         '''EXAMPLE:
@@ -190,8 +203,13 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
         return self.trafficVolumeDict
 
     def get_trafficVolumes(self, dateTime: datetime, gantryID, direction):
-        tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}
-        directionEng = covertDirectionToEng[direction]
+        '''EXAMPLE:
+        dateTime = %Y-%m-%d %H:%M
+        Direction = 北
+        '''
+
+        tempResults = {'5': 0, '31': 0, '32': 0, '41': 0, '42': 0}  # five types of vehicles
+        directionEng = covertDirectionToEng[direction]  # translate direction in Chinese to English
 
         c1 = (self.CSVFileContent['TimeInterval'] == dateTime.strftime("%Y-%m-%d %H:%M"))
         c2 = (self.CSVFileContent['GantryID'] == gantryID)
@@ -203,18 +221,23 @@ class TrafficVolumeDataParser(CSVParser.CSVParser):
 
         vehTypeList = []
         trafficList = []
+
         for index in indexList:
             vehTypeList.append(self.CSVFileContent.at[index, 'VehicleType'])
             trafficList.append(self.CSVFileContent.at[index, 'Traffic'])
+
         for i in np.arange(5):
             tempResults.update({str(vehTypeList[i]): trafficList[i]})
+
         self.trafficVolumeDict['S'] = int(tempResults['31']) + int(tempResults['32'])
         self.trafficVolumeDict['L'] = int(tempResults['41']) + int(tempResults['42'])
         self.trafficVolumeDict['T'] = int(tempResults['5'])
         self.trafficVolumeDict['PCU'] = self.get_PCU_Volumes()
         self.trafficVolumeDict['volume'] = self.get_totalTrafficVolumes()
+        self.trafficVolumeDict['heavy_rate'] = self.get_heavyRate()
 
         return self.trafficVolumeDict
+
 
 class RainDataParser(CSVParser.CSVParser):
     def __init__(self, fileRoute, fileName):
@@ -240,8 +263,7 @@ class WindDataParser(CSVParser.CSVParser):
         super().__init__(fileRoute, fileName)
 
     def get_windspeed(self, endtime: datetime):
-        self.CSVFileContent['時間'] = self.CSVFileContent['時間'].replace(['24:00:00'], '00:00') #一個坑
-
+        self.CSVFileContent['時間'] = self.CSVFileContent['時間'].replace(['24:00:00'], '00:00') #一個坑: replace "24:00:00" with "00:00"
         index = (pd.to_datetime('20' + self.CSVFileContent['日期'] + " " + self.CSVFileContent['時間']) >= endtime).idxmax()
         #挑出 >= endTime 最接近的那一個時間點
         # if not index:
@@ -256,8 +278,8 @@ if __name__ == '__main__':
     YEAR = '2020'
     FREEWAY = '國道1號'
     direction = '北'
-    DOWN_LIMIT = 5042319
-    UPPER_LIMIT = 5042300
+    START_ROW = 700001
+    END_ROW = 900000
     MONTH = 12
 
     def store_rainCSVData():
@@ -292,20 +314,46 @@ if __name__ == '__main__':
         print("Load ETAG DATA DONE!")
         return 0
 
+    def change_colTypes():
+        COL_TO_FLOAT_LIST = ['PCU', 'heavy_rate', 'Speed_PCU', 'Speed_volume',
+                             'windspeed', 'rain',
+                             'minradius', 'minradiuslength', 'continuouscurve']
+
+        for col in COL_TO_FLOAT_LIST:
+            freewayCSVContentDict[FREEWAY+direction][col] \
+                = freewayCSVContentDict[FREEWAY+direction][col].astype(float)
+        print("CHANGE COLUMN TYPE DONE!")
+        return 0
+
+    def generate_skiprows(startRow: int, endRow: int) -> np.ndarray:
+        originalNumberOfRows = csvParser.get_CSVFileOriginalNumberOfRows()
+        allRows = np.array([i for i in np.arange(originalNumberOfRows)])
+        wantedRows = np.array([0] + [i for i in np.arange(startRow, endRow+1)])
+        skipRows = np.delete(allRows, wantedRows)
+
+        return skipRows
 
     route = os.path.join('data', YEAR, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
     csvParser = CSVParser.CSVParser(fileRoute=route, fileName=FREEWAY + '_' + direction + '_new.csv')
-    csvParser.readCSVfile(skiprows=[i for i in np.arange(DOWN_LIMIT, UPPER_LIMIT)]) ##skiprows=[i for i in range(1, 5042300)] ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
+
+    skipRows = generate_skiprows(startRow=START_ROW, endRow=END_ROW) #specify rows that required to skip
+    csvParser.readCSVfile(skiprows=skipRows)
+    ##skiprows=[i for i in range(1, 5042300)]
+    ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
 
     freewayCSVContentDict[FREEWAY+direction] = csvParser.getCSVfileContent()  # get the content of the csv
+    change_colTypes()  # convert column types
     freewayCSVColumnNames = csvParser.getColunmnames()
+
     print(f"len = {len(freewayCSVContentDict[FREEWAY+direction])}")
     print("save success!")
 
+    ## Read Mile to gantryID or stationID convert file
     MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
                                                             fileName='ETC點位對照表_2公里_20220112.csv')
     MiletoWeatherStationConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
                                                                 fileName='天氣測站對照表_2公里_2019_2020.csv')
+
     store_rainCSVData()  #儲存雨量測站表
     store_windCSVData()  #儲存風向測站表
     store_etagCSVData(year=YEAR) #儲存etag資料
@@ -322,7 +370,6 @@ if __name__ == '__main__':
         endtimeDTform = pd.to_datetime(str(year) + '/' + str(date) + " " + str(endtime), '%Y/%m/%d %H:%M')
 
         return 0
-
 
     def start(row):
         index = row['index']
@@ -351,6 +398,7 @@ if __name__ == '__main__':
         freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_T'] = trafficVolumes['T']
         freewayCSVContentDict[FREEWAY+direction].at[index, 'volume'] = trafficVolumes['volume']
         freewayCSVContentDict[FREEWAY+direction].at[index, 'PCU'] = trafficVolumes['PCU']
+        freewayCSVContentDict[FREEWAY+direction].at[index, 'heavy_rate'] = trafficVolumes['heavy_rate']
 
         ### Weather data parse
         stationID = MiletoWeatherStationConverter.get_equipmentID(inputArgs={'freeway': FREEWAY, 'direction': direction,
@@ -374,7 +422,7 @@ if __name__ == '__main__':
     freewayCSVContentDict[FREEWAY+direction]['index'] = np.arange(0, freewayCSVContentDict[FREEWAY+direction].shape[0])
     freewayCSVContentDict[FREEWAY+direction].apply(start, axis=1, raw=True) #axis = 1 -> tell panda.apply() to iterate each row
 
-    freewayCSVContentDict[FREEWAY+direction].to_csv(str(DOWN_LIMIT) + '_' + str(UPPER_LIMIT) + '.csv', enconding='utf-8-sig')
+    freewayCSVContentDict[FREEWAY+direction].to_csv(str(START_ROW) + '_' + str(END_ROW) + '.csv', encoding='utf-8-sig')
     print("ALL TASKS DONE!")
     os.system('pause')
 

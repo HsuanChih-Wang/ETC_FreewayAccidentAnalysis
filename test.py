@@ -73,3 +73,9 @@ for day in np.arange(1, calendar.monthrange(2022, 1)[1]+1):
 x = np.array([])
 x = np.append(x, [1,2,3])
 print(x)
+
+v = np.array([i for i in np.arange(10)])
+m = np.array([i for i in np.arange(5)])
+
+result = v - m
+print(result)

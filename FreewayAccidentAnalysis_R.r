@@ -22,8 +22,7 @@ freeway_no3_north <- subset(freeway_no3_north,
 freeway_500000_withheavyrate <- subset(freeway_500000_withheavyrate, 
                             select = -c(startTime_millionSec, endTime_millionSec, pavement, cement, remark, upslope
                                         ,downslope, minradiuslength, one, Var_windspeed, Var_rain, 
-                                        Var_volume, Var_PCU, Var_Speed_volume, Var_Speed_PCU, startkilo, 
-                                        endkilo, year, date, starttime, endtime, speedlimit, Speed_volume, Speed_PCU, index))
+                                        Var_volume, Var_PCU, Var_Speed_volume, Var_Speed_PCU, speedlimit, Speed_volume, Speed_PCU, index))
 
 
 # convert crash values to 1
