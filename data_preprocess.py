@@ -278,9 +278,10 @@ if __name__ == '__main__':
     YEAR = '2020'
     FREEWAY = '國道1號'
     direction = '北'
-    START_ROW = 700001
-    END_ROW = 900000
+    START_ROW = 4200001
+    END_ROW = 5042300
     MONTH = 12
+    TO_CSV_PATH = os.path.join("output", YEAR + '_' + FREEWAY + '_' + str(START_ROW) + '_' + str(END_ROW) + '.csv')
 
     def store_rainCSVData():
         rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(YEAR), 'rain')
@@ -422,7 +423,7 @@ if __name__ == '__main__':
     freewayCSVContentDict[FREEWAY+direction]['index'] = np.arange(0, freewayCSVContentDict[FREEWAY+direction].shape[0])
     freewayCSVContentDict[FREEWAY+direction].apply(start, axis=1, raw=True) #axis = 1 -> tell panda.apply() to iterate each row
 
-    freewayCSVContentDict[FREEWAY+direction].to_csv(str(START_ROW) + '_' + str(END_ROW) + '.csv', encoding='utf-8-sig')
+    freewayCSVContentDict[FREEWAY+direction].to_csv(TO_CSV_PATH, encoding='utf-8-sig')
     print("ALL TASKS DONE!")
     os.system('pause')
 

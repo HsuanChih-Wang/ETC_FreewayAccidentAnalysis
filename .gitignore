@@ -128,8 +128,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-#directory: data
+#directory: data , output
 data/
+output/
 
 #.RData
 .RData
