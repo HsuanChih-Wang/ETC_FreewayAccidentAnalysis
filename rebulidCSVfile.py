@@ -8,7 +8,6 @@ class RebuildCSVFile(CSVParser.CSVParser):
         self.selectedResults = selectedResults
 
     def rebuildResultsCSV(self):
-
         from copy import deepcopy
         newResultCSV = []
         timeList = []
@@ -51,8 +50,8 @@ class Original_File_Parser(CSVParser.CSVParser):
                             self.selectedRows.append(dict(row))  # Record in a dictionary form
                         numOfRows = numOfRows + 1
                 elif method == 'normal':
-                    reader = csv.reader(file)
-                    for row in reader:
+                    reader = csv.reader(file)  # read csv file
+                    for row in reader:  # iterate each row
                         if numOfRows == 1 or numOfRows % 25 == 0:
                             self.selectedRows.append(row)
                         numOfRows = numOfRows + 1
@@ -78,12 +77,12 @@ class Original_File_Parser(CSVParser.CSVParser):
 
 
 if __name__ == '__main__':
-    orgFileParser = Original_File_Parser(fileRoute=os.path.join('data', '2020'), fileName='國道5號北向.csv')
+    orgFileParser = Original_File_Parser(fileRoute=os.path.join('data', '2020'), fileName='國道1號北向.csv')
     orgFileParser.readCSVfile(method='normal') #readCSVfile
     orgFileParser.clean_Specific_Column_Values() #clean original file content
     results = orgFileParser.get_SelectedRows()
 
-    re1 = RebuildCSVFile(fileRoute=os.path.join('data', '109'), fileName='國道5號北向.csv', selectedResults=results)
+    re1 = RebuildCSVFile(fileRoute=os.path.join('data', '109'), fileName='國道1號北向.csv', selectedResults=results)
     re1.rebuildResultsCSV()
 
 
