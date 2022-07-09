@@ -276,10 +276,10 @@ class WindDataParser(CSVParser.CSVParser):
 if __name__ == '__main__':
 
     YEAR = '2020'
-    FREEWAY = '國道1號'
+    FREEWAY = '國道3號'
     direction = '北'
-    START_ROW = 4200001
-    END_ROW = 5042300
+    START_ROW = 3800001 #Please start from ROW 1!! not row 0 -> becasue ROW 0 is added in the subfunction!
+    END_ROW = 3900000  #5546276
     MONTH = 12
     TO_CSV_PATH = os.path.join("output", YEAR + '_' + FREEWAY + '_' + str(START_ROW) + '_' + str(END_ROW) + '.csv')
 
@@ -328,13 +328,13 @@ if __name__ == '__main__':
 
     def generate_skiprows(startRow: int, endRow: int) -> np.ndarray:
         originalNumberOfRows = csvParser.get_CSVFileOriginalNumberOfRows()
-        allRows = np.array([i for i in np.arange(originalNumberOfRows)])
-        wantedRows = np.array([0] + [i for i in np.arange(startRow, endRow+1)])
+        allRows = np.array([i for i in np.arange(originalNumberOfRows+1)])
+        wantedRows = np.array([0] + [i for i in np.arange(startRow, endRow+1)])  # [0] -> row of column names
         skipRows = np.delete(allRows, wantedRows)
-
+        print(f"WANTED ROWS = 0, {startRow} ~ {endRow}")
         return skipRows
 
-    route = os.path.join('data', YEAR, 'newCombinedCSV', 'addMillionSec') #read: after combined CSV
+    route = os.path.join('data', YEAR, 'newCombinedCSV') #read: after combined CSV
     csvParser = CSVParser.CSVParser(fileRoute=route, fileName=FREEWAY + '_' + direction + '_new.csv')
 
     skipRows = generate_skiprows(startRow=START_ROW, endRow=END_ROW) #specify rows that required to skip
@@ -346,8 +346,8 @@ if __name__ == '__main__':
     change_colTypes()  # convert column types
     freewayCSVColumnNames = csvParser.getColunmnames()
 
-    print(f"len = {len(freewayCSVContentDict[FREEWAY+direction])}")
-    print("save success!")
+    print(f"input file length = {len(freewayCSVContentDict[FREEWAY+direction])}")
+    print("SAVE SUCCESS!")
 
     ## Read Mile to gantryID or stationID convert file
     MiletoETagGantryConverter = MileToEquipementIDConverter(fileRoute=os.path.join('data', 'MileToGantryReference'),
@@ -374,7 +374,7 @@ if __name__ == '__main__':
 
     def start(row):
         index = row['index']
-        print(f'index = {index}')
+        print(f'startRow={START_ROW} endRow={END_ROW} index = {index}')
 
         # decompose data
         year = row['year'] #year
@@ -414,7 +414,12 @@ if __name__ == '__main__':
 
         ## windspeed
         windspeed = windDataParserDict[stationName].get_windspeed(endtime=endtimeDTform)
-        freewayCSVContentDict[FREEWAY+direction].at[index, 'windspeed'] = windspeed
+        try:
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'windspeed'] = windspeed
+        except ValueError:
+            print(f"ValueError! START_ROW={START_ROW}, ENDROW={END_ROW}"
+                  f"windspeed = {windspeed}, index={index}, stationName={stationName}, endTimeDTform = {endtimeDTform}")
+            raise ValueError
 
     # The slowest way
     # for index, row in freewayCSVContentDict[freeway+direction].iterrows():

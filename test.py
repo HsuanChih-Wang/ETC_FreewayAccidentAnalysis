@@ -79,3 +79,5 @@ m = np.array([i for i in np.arange(5)])
 
 result = v - m
 print(result)
+
+
