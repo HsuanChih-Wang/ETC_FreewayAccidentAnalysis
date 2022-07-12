@@ -278,8 +278,8 @@ if __name__ == '__main__':
     YEAR = '2020'
     FREEWAY = '國道3號'
     direction = '北'
-    START_ROW = 3800001 #Please start from ROW 1!! not row 0 -> becasue ROW 0 is added in the subfunction!
-    END_ROW = 3900000  #5546276
+    START_ROW = 5200001 #Please start from ROW 1!! not row 0 -> becasue ROW 0 is added in the subfunction!
+    END_ROW = 5300000  #5546276
     MONTH = 12
     TO_CSV_PATH = os.path.join("output", YEAR + '_' + FREEWAY + '_' + str(START_ROW) + '_' + str(END_ROW) + '.csv')
 

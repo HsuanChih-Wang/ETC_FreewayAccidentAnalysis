@@ -33,6 +33,15 @@ freewayNo1_2020_all$DayType <- factor(freewayNo1_2020_all$DayType)
 freewayNo1_2020_all$PeakHour <- factor(freewayNo1_2020_all$PeakHour)
 freewayNo1_2020_all$Hour <- factor(freewayNo1_2020_all$Hour)
 
+
+
+# 
+hasCrash <- which(freewayNo1_2020_all$crash == 1)
+hasNoCrash <- which(freewayNo1_2020_all$crash == 0)
+noCrash.downsample <- sample(hasNoCrash, length(hasCrash) * 1)
+freewayNo1_2020.down <- freewayNo1_2020_all[c(noCrash.downsample, hasCrash),]
+
+
 # formulate logistic regression
 
 fw_logistic_No1_2020_all <- glm(formula = crash ~ lane + minlane + addlane + totalwidth + inshoulder + outshoulder + shouderoallow + upslopelength 
@@ -40,3 +49,11 @@ fw_logistic_No1_2020_all <- glm(formula = crash ~ lane + minlane + addlane + tot
                                         + PCU + heavy_rate + volume  + windspeed + rain + DayType + Hour, data = freewayNo1_2020_all, family = binomial(link = "logit"))
 
 summary(fw_logistic_No1_2020_all)
+
+fw_logistic_No1_2020_all.down <- glm(formula = crash ~ lane + minlane + addlane + totalwidth + inshoulder + outshoulder + shouderoallow + upslopelength 
+                                + downslopelength + maxupslope + maxdownslope + curvelength + minradius + continuouscurve + camera + service + interchange 
+                                + PCU + heavy_rate + volume  + windspeed + rain + DayType + PeakHour, data = freewayNo1_2020.down, family = binomial(link = "logit"))
+
+summary(fw_logistic_No1_2020_all.down)
+
+
