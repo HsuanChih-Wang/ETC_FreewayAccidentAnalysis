@@ -278,8 +278,8 @@ if __name__ == '__main__':
     YEAR = '2020'
     FREEWAY = '國道3號'
     direction = '北'
-    START_ROW = 3800001 #Please start from ROW 1!! not row 0 -> becasue ROW 0 is added in the subfunction!
-    END_ROW = 3900000  #5546276
+    START_ROW = 5200001 #Please start from ROW 1!! not row 0 -> becasue ROW 0 is added in the subfunction!
+    END_ROW = 5300000  #5546276
     MONTH = 12
     TO_CSV_PATH = os.path.join("output", YEAR + '_' + FREEWAY + '_' + str(START_ROW) + '_' + str(END_ROW) + '.csv')
 
@@ -317,13 +317,13 @@ if __name__ == '__main__':
 
     def change_colTypes():
         COL_TO_FLOAT_LIST = ['PCU', 'heavy_rate', 'Speed_PCU', 'Speed_volume',
-                             'windspeed', 'rain',
-                             'minradius', 'minradiuslength', 'continuouscurve']
+                             'windspeed', 'rain', 'minradius', 'minradiuslength',
+                             'continuouscurve']
 
         for col in COL_TO_FLOAT_LIST:
             freewayCSVContentDict[FREEWAY+direction][col] \
                 = freewayCSVContentDict[FREEWAY+direction][col].astype(float)
-        print("CHANGE COLUMN TYPE DONE!")
+        print(f"CHANGE COLUMN TYPE OF {COL_TO_FLOAT_LIST}  TO FLOAT DONE!")
         return 0
 
     def generate_skiprows(startRow: int, endRow: int) -> np.ndarray:
@@ -337,7 +337,7 @@ if __name__ == '__main__':
     route = os.path.join('data', YEAR, 'newCombinedCSV') #read: after combined CSV
     csvParser = CSVParser.CSVParser(fileRoute=route, fileName=FREEWAY + '_' + direction + '_new.csv')
 
-    skipRows = generate_skiprows(startRow=START_ROW, endRow=END_ROW) #specify rows that required to skip
+    skipRows = generate_skiprows(startRow=START_ROW, endRow=END_ROW) #set the rows that are required to skip
     csvParser.readCSVfile(skiprows=skipRows)
     ##skiprows=[i for i in range(1, 5042300)]
     ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
