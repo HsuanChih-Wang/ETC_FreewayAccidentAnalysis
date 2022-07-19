@@ -1,9 +1,9 @@
-freewayNo3_2020_all <- read.csv("C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/fw3_2020_north_final(afterSQL).csv", sep=",")
+freewayNo3_2020_all <- read.csv("C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP3. after_add_density/FW3_North_All(afterSQL).csv", sep=",")
 
 
 # remove columns which either contain same value or are unused
 freewayNo3_2020_all <- subset(freewayNo3_2020_all, 
-                              select = -c(num, pavement, cement, remark, minradiuslength, one, 
+                              select = -c(other, num, pavement, cement, remark, minradiuslength, one, 
                                           Var_windspeed, Var_rain, Var_volume, Var_PCU, Var_Speed_volume, Var_Speed_PCU, 
                                           startkilo, endkilo, starttime, endtime, 
                                           speedlimit, index))
@@ -45,11 +45,35 @@ freewayNo3_2020_all$PeakHour <- factor(freewayNo3_2020_all$PeakHour)
 freewayNo3_2020_all$Hour <- factor(freewayNo3_2020_all$Hour)
 freewayNo3_2020_all$CrashType <- factor(freewayNo3_2020_all$CrashType)
 
-# formulate logistic regression
 
+# 
+hasCrash <- which(freewayNo3_2020_all$crash == 1)
+hasNoCrash <- which(freewayNo3_2020_all$crash == 0)
+noCrash.downsample <- sample(hasNoCrash, length(hasCrash) * 1)
+freewayNo3_2020.down <- freewayNo3_2020_all[c(noCrash.downsample, hasCrash),]
+
+
+# formulate logistic regression
 fw_logistic_No3_2020_all <- glm(formula = crash ~ lane + minlane + addlane + totalwidth + lanewidth
                                 + inshoulder + outshoulder + upslope + downslope + upslopelength + downslopelength
                                 + curvelength + minradius + continuouscurve + interchange + windspeed + rain
                                 + PCU + heavy_rate + DayType + Hour, data = freewayNo3_2020_all, family = binomial(link = "logit"))
 
 summary(fw_logistic_No3_2020_all)
+
+#
+fw_logistic_No3_2020_all.down <- glm(formula = crash ~ lane + minlane + addlane + inshoulder + outshoulder + upslope + downslope
+                                     + upslopelength + downslopelength + curvelength + minradius + continuouscurve
+                                     + interchange + shouderoallow + camera + service + windspeed
+                                     + rain + PCU + Density_byVehicle_S_Speed + heavy_rate + DayType + PeakHour, data = freewayNo3_2020.down, family = binomial(link = "logit"))
+
+summary(fw_logistic_No3_2020_all.down)
+
+# 
+library(pscl)
+pR2(fw_logistic_No3_2020_all.down)
+
+
+
+
+

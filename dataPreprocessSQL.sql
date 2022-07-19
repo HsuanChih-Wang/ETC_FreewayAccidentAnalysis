@@ -1,10 +1,9 @@
-/*
-LOAD DATA INFILE 'D:/freewayData/2020_fw1_north_All.csv' INTO TABLE fw1_2020_north_all_new
+/* */
+LOAD DATA INFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP2. after_add_Speed/2020_fw3_All(after TrafficSpeed).csv' 
+INTO TABLE fw3_2020_north_all_afterspeed
 FIELDS TERMINATED BY ','
 LINES TERMINATED BY '\r\n'
-IGNORE 1 LINES 
-*/
-
+IGNORE 1 LINES;
 
 /* */
 DELETE FROM accident_2020_no1_north WHERE right(發生日期,4) not in ('2020'); 
@@ -57,7 +56,7 @@ CREATE INDEX startkilo ON fw3_2020_north_all(startkilo);
 CREATE INDEX endkilo ON fw3_2020_north_all(endkilo);
 
 /*CREATE A NEW TABLE WITH STRUCTURE THAT IS SIMILAR TO ANOTHER TABLE*/
-CREATE TABLE `fw1_2020_north_all` LIKE `fw1_north`;
+CREATE TABLE `fw3_2020_north_all_afterSpeed` LIKE `fw1_2020_north_all_afterSpeed`;
 
 
 /*  Set DayType  0 = Workweek, 1 = Weekend, 2 = Holiday */ 
@@ -104,10 +103,58 @@ INNER JOIN (
     GROUP BY startkilo, endkilo
 ) b ON a.startkilo = b.startkilo AND a.endkilo = b.endkilo AND a.PCU = b.PCU AND a.date = b.date;
 
+/***** FOR FW AFTER SPEED TABLE *****/
+/*delete abnormal data*/
+/*Problematic Speed: vehicle S L T speed > 150 -> set as 0*/
+update freeway.fw1_2020_north_all_afterspeed set SpaceSpeed_S = 0 where SpaceSpeed_S > 150;
+update freeway.fw1_2020_north_all_afterspeed set SpaceSpeed_T = 0 where SpaceSpeed_T > 150;
+/*Abnormal rows: delete rows -> volume > 1 but speed = 0*/
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_S > 1 and SpaceSpeed_S = 0;
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_L > 1 and SpaceSpeed_L = 0;
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_T > 1 and SpaceSpeed_T = 0;
+
+/*Abnormal rows: delete rows -> volume > 1 but speed = 0*/
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_S = 0 and SpaceSpeed_S > 0;
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_L = 0 and SpaceSpeed_L > 0;
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE volume_T = 0 and SpaceSpeed_T > 0;
+
+
+update freeway.fw3_2020_north_all_afterspeed set SpaceSpeed_S = 0 where SpaceSpeed_S > 150;
+update freeway.fw3_2020_north_all_afterspeed set SpaceSpeed_T = 0 where SpaceSpeed_T > 150;
+/*Abnormal rows: delete rows -> volume > 1 but speed = 0*/
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_S > 1 and SpaceSpeed_S = 0;
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_L > 1 and SpaceSpeed_L = 0;
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_T > 1 and SpaceSpeed_T = 0;
+
+/*Abnormal rows: delete rows -> volume > 1 but speed = 0*/
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_S = 0 and SpaceSpeed_S > 0;
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_L = 0 and SpaceSpeed_L > 0;
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_T = 0 and SpaceSpeed_T > 0;
+
+
+
+
+
+/*Set Density*/
+/*CREATE INDEX startkilo ON freeway.fw1_2020_north_all_afterspeed(startkilo);*/
+update freeway.fw1_2020_north_all_afterspeed set Density_byAvgSpeed = round(PCU/AvgSpaceSpeed, 2);
+update freeway.fw1_2020_north_all_afterspeed set Density_byMedianSpeed = round(PCU/MedianSpaceSpeed, 2);
+update freeway.fw1_2020_north_all_afterspeed set Density_byVehicle_S_Speed = round(PCU/SpaceSpeed_S, 2);
+DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE Density_byVehicle_S_Speed is null;
+/* DELETE FROM freeway.fw1_2020_north_all_afterspeed WHERE Density_byMedianSpeed is null;*/
+
+update freeway.fw3_2020_north_all_afterspeed set Density_byAvgSpeed = round(PCU/AvgSpaceSpeed, 2);
+update freeway.fw3_2020_north_all_afterspeed set Density_byMedianSpeed = round(PCU/MedianSpaceSpeed, 2);
+update freeway.fw3_2020_north_all_afterspeed set Density_byVehicle_S_Speed = round(PCU/SpaceSpeed_S, 2);
+DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE Density_byVehicle_S_Speed is null;
+
+
 /*快速方法: 資料匯出成csv*/
-SELECT * INTO OUTFILE 'D:/freewayData/fw1_2020_north_final(afterSQL)_1.csv'
+SELECT * INTO OUTFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP2. after_add_Speed/FW1_North_All(afterSQL).csv'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY ''
   LINES TERMINATED BY '\n'
-  FROM fw1_2020_north_all; 
+  FROM fw1_2020_north_all_afterspeed; 
+  
+
 
 

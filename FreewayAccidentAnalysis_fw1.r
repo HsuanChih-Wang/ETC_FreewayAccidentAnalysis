@@ -1,15 +1,20 @@
-freewayNo1_2020_all <- read.csv("C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/fw1_2020_north_final(afterSQL).csv", sep=",")
+freewayNo1_2020_all <- read.csv("C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP3. after_add_density/FW1_North_All(afterSQL).csv", sep=",")
 
 # remove columns which either contain same value or are unused
 freewayNo1_2020_all <- subset(freewayNo1_2020_all, 
-                            select = -c(num, pavement, cement, remark, minradiuslength, one, 
+                            select = -c(other, num, pavement, cement, remark, minradiuslength, one, 
                                         Var_windspeed, Var_rain, Var_volume, Var_PCU, Var_Speed_volume, Var_Speed_PCU, 
                                         startkilo, endkilo, starttime, startTime_millionSec, endtime, endTime_millionSec, 
                                         speedlimit, fw1_northcol, index))
 
 ## remove highly correlated coefficients
 freewayNo1_2020_all <- subset(freewayNo1_2020_all, 
-                              select = -c(totalwidth, lanewidth, maxdownslope, volume, volume_S, volume_L, volume_T))
+                              select = -c(totalwidth, lanewidth, maxdownslope, 
+                                          volume, volume_S, volume_L, volume_T, 
+                                          )) 
+
+#### SpaceSpeed_S, SpaceSpeed_L, SpaceSpeed_T, AvgSpaceSpeed, MedianSpaceSpeed, Density_byAvgSpeed, Density_byMedianSpeed
+
 
 freewayNo1_2020_all <- subset(freewayNo1_2020_all, 
                               select = -c(Speed_volume, Speed_PCU))
@@ -46,7 +51,7 @@ freewayNo1_2020_all$Hour <- factor(freewayNo1_2020_all$Hour)
 # 
 hasCrash <- which(freewayNo1_2020_all$crash == 1)
 hasNoCrash <- which(freewayNo1_2020_all$crash == 0)
-noCrash.downsample <- sample(hasNoCrash, length(hasCrash) * 10)
+noCrash.downsample <- sample(hasNoCrash, length(hasCrash) * 1)
 freewayNo1_2020.down <- freewayNo1_2020_all[c(noCrash.downsample, hasCrash),]
 
 
@@ -54,17 +59,19 @@ freewayNo1_2020.down <- freewayNo1_2020_all[c(noCrash.downsample, hasCrash),]
 
 fw_logistic_No1_2020_all <- glm(formula = crash ~ lane + minlane + addlane + inshoulder + outshoulder + upslope + downslope
                                 + upslopelength + downslopelength + maxupslope + curvelength + minradius + continuouscurve
-                                + interchange + tunnellength + tunnelin + tunnelout + shouderoallow + camera + service + windspeed
-                                + rain + PCU + heavy_rate + DayType + PeakHour, data = freewayNo1_2020_all, family = binomial(link = "logit"))
+                                + interchange + tunnellength + shouderoallow + camera + service + windspeed
+                                + rain + PCU + AvgSpaceSpeed + heavy_rate + DayType + PeakHour, data = freewayNo1_2020_all, family = binomial(link = "logit"))
 
 summary(fw_logistic_No1_2020_all)
 
+# Density_byVehicle_S_Speed
 fw_logistic_No1_2020_all.down <- glm(formula = crash ~ lane + minlane + addlane + inshoulder + outshoulder + upslope + downslope
-                                               + upslopelength + downslopelength + maxupslope + curvelength + minradius + continuouscurve
-                                               + interchange + tunnellength + tunnelin + tunnelout + shouderoallow + camera + service + windspeed
-                                               + rain + PCU + heavy_rate + DayType + PeakHour
-                                               , data = freewayNo1_2020.down, family = binomial(link = "logit"))
+                                     + upslopelength + downslopelength + maxupslope + curvelength + minradius + continuouscurve
+                                     + interchange + shouderoallow + camera + service + windspeed
+                                     + rain + PCU + SpaceSpeed_S + heavy_rate + DayType + Hour, data = freewayNo1_2020.down, family = binomial(link = "logit"))
 
 summary(fw_logistic_No1_2020_all.down)
 
-
+library(pscl)
+pR2(fw_logistic_No1_2020_all.down)
+pR2(fw_logistic_No1_2020_all)
