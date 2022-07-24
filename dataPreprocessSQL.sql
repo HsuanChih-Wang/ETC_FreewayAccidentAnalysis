@@ -126,7 +126,7 @@ DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_S > 1 and SpaceSp
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_L > 1 and SpaceSpeed_L = 0;
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_T > 1 and SpaceSpeed_T = 0;
 
-/*Abnormal rows: delete rows -> volume > 1 but speed = 0*/
+/*Abnormal rows: delete rows -> volume = 0 but speed > 0*/
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_S = 0 and SpaceSpeed_S > 0;
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_L = 0 and SpaceSpeed_L > 0;
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_T = 0 and SpaceSpeed_T > 0;
@@ -150,10 +150,10 @@ DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE Density_byVehicle_S_Spee
 
 
 /*快速方法: 資料匯出成csv*/
-SELECT * INTO OUTFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP2. after_add_Speed/FW1_North_All(afterSQL).csv'
+SELECT * INTO OUTFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP3. after_add_density/FW3_North_All(afterSQL).csv'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY ''
   LINES TERMINATED BY '\n'
-  FROM fw1_2020_north_all_afterspeed; 
+  FROM fw3_2020_north_all_afterspeed; 
   
 
 

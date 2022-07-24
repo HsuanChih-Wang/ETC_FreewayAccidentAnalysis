@@ -81,8 +81,13 @@ for day in np.arange(1, calendar.monthrange(2022, 1)[1]+1):
 # print(result)
 
 
+a = [0,1]
+b = [2,3]
+c = [4,5]
 
+for i,j in a,b,c:
+    print(i, j)
 
-print("days = ", calendar.monthrange(2022, 1))
+#print("days = ", calendar.monthrange(2022, 1))
 
 

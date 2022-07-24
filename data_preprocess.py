@@ -69,13 +69,15 @@ class NotFindEquipmentIDError(Exception):
         super().__init__(self.message)
     pass
 
-class NotFindEtagDataIndexError(Exception):
+class NotFindDataIndexError(Exception):
 
-    def __init__(self, inputArgs: dict, message="Can not find Etag Index : "):
+    def __init__(self, inputArgs: dict, dataType: str):
+        message = f"Can not find {dataType} Index : "
         self.inputArgs = inputArgs
         self.message = message + str(inputArgs)
         super().__init__(self.message)
     pass
+
 
 class NotFindWindSpeedError(Exception):
     def __init__(self, inputArgs, message="Can not find Windspeed, the input datetime is = "):
@@ -157,6 +159,7 @@ class MileToEquipementIDConverter(CSVParser.CSVParser):
 class TrafficDataParser(CSVParser.CSVParser):
 
     PCU = {'S': 1.0, 'L': 1.6, 'T': 2.0}
+    CAR_TYPE_LIST = ['S', 'L', 'T']
 
     def __init__(self, fileRoute, fileName):
         super().__init__(fileRoute=fileRoute, fileName=fileName)
@@ -165,7 +168,7 @@ class TrafficDataParser(CSVParser.CSVParser):
                                   'Var_PCU': 0.0, 'Var_Speed_PCU': 0.0, 'Var_Speed_Volume': 0.0, 'Var_volume': 0.0,
                                   'heavy_rate': 0.0}
 
-        self.trafficSpaceSpeedDict = {'S': 0.0, 'L': 0.0, 'T': 0.0, 'Avg': 0.0, 'Median': 0.0}
+        self.trafficSpeedDict = {'S': 0.0, 'L': 0.0, 'T': 0.0, 'Avg': 0.0, 'Median': 0.0}
 
         self.readCSVfile()
 
@@ -192,16 +195,16 @@ class TrafficDataParser(CSVParser.CSVParser):
         return heavyRate
 
     def get_avg_SpaceSpeed(self):
-        result = np.mean(np.array([self.trafficSpaceSpeedDict['S'],
-                          self.trafficSpaceSpeedDict['L'],
-                          self.trafficSpaceSpeedDict['T']]))
+        result = np.mean(np.array([self.trafficSpeedDict['S'],
+                          self.trafficSpeedDict['L'],
+                          self.trafficSpeedDict['T']]))
 
         return round(result, 1)
 
     def get_median_SpaceSpeed(self):
-        result = np.median(np.array([self.trafficSpaceSpeedDict['S'],
-                                     self.trafficSpaceSpeedDict['L'],
-                                     self.trafficSpaceSpeedDict['T']]))
+        result = np.median(np.array([self.trafficSpeedDict['S'],
+                                     self.trafficSpeedDict['L'],
+                                     self.trafficSpeedDict['T']]))
 
         return round(result, 1)
 
@@ -252,7 +255,7 @@ class TrafficDataParser(CSVParser.CSVParser):
         indexList = self.CSVFileContent.index[(c1 & c2 & c3)].tolist()
 
         if not indexList:
-            raise NotFindEtagDataIndexError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
+            raise NotFindDataIndexError(inputArgs={'dateTime': datetime, 'gantryID': gantryID, 'direction': direction})
 
         vehTypeList = []
         trafficList = []
@@ -273,11 +276,43 @@ class TrafficDataParser(CSVParser.CSVParser):
 
         return self.trafficVolumeDict
 
-    def get_trafficVolumesFromVD(self):
+    def get_trafficCharactersFromVD(self, dateTime: datetime, vdid: str):
+        # VD dateTime: pleas pass "endtime" instead of "starttime"
+        c1 = (self.CSVFileContent['datacollecttime'] == dateTime.strftime("%Y-%m-%d %H:%M"))
+        c2 = (self.CSVFileContent['vdid'] == vdid)
+        indexList = self.CSVFileContent.index[(c1 & c2)].tolist()
+        if not indexList: #Can not find traffic volume index
+            raise NotFindDataIndexError(dataType='VD', inputArgs={'dateTime': datetime,
+                                                       'VDID': vdid})
 
+        occupancylist = []
+        speedDict = {'S': [], 'L': [], 'T': []}
 
+        for index in indexList:
+            carid = self.CSVFileContent.at[index, 'carid']
+            occupancylist.append(self.CSVFileContent.at[index, 'laneoccupy'])
+            if carid == 'S':
+                self.trafficVolumeDict['S'] += self.CSVFileContent.at[index, 'volume']
+                speedDict['S'].append(self.CSVFileContent.at[index, 'speed'])
+            elif carid == 'L':
+                self.trafficVolumeDict['L'] += self.CSVFileContent.at[index, 'volume']
+                speedDict['L'].append(self.CSVFileContent.at[index, 'speed'])
+            elif carid == 'T':
+                self.trafficVolumeDict['T'] += self.CSVFileContent.at[index, 'volume']
+                speedDict['T'].append(self.CSVFileContent.at[index, 'speed'])
 
-        return 0
+        self.trafficVolumeDict['PCU'] = self.get_PCU_Volumes()
+        self.trafficVolumeDict['volume'] = self.get_totalTrafficVolumes()
+        self.trafficVolumeDict['heavy_rate'] = self.get_heavyRate()
+        self.trafficVolumeDict['Occupancy'] = np.mean(occupancylist)
+
+        self.trafficSpeedDict['S'] = np.mean(speedDict['S'])
+        self.trafficSpeedDict['L'] = np.mean(speedDict['L'])
+        self.trafficSpeedDict['T'] = np.mean(speedDict['T'])
+        self.trafficSpeedDict['Avg'] = self.get_avg_SpaceSpeed()
+        self.trafficSpeedDict['Median'] = self.get_median_SpaceSpeed()
+
+        return self.trafficVolumeDict, self.trafficSpeedDict
 
 
     def get_trafficSpaceSpeed(self, dateTime: datetime, gantryFrom: str, gantryTo: str) -> dict:
@@ -365,6 +400,8 @@ if __name__ == '__main__':
     END_ROW = 5000000  #5546276 #5042301
     MONTH = 12
     TO_CSV_PATH = os.path.join("output", YEAR + '_' + FREEWAY + '_' + str(START_ROW) + '_' + str(END_ROW) + '.csv')
+    READ_CSV_FILE_ROUTE = os.path.join('data', YEAR, '5min') #read CSV file route
+    READ_CSV_FILE_NAME = FREEWAY + '_' + direction + '_alreadyHasVolumeWeather.csv' #read csv file name
 
     def store_rainCSVData():
         rainDataRoute = os.path.join('data', 'Central Weather Bureau', str(YEAR), 'rain')
@@ -426,13 +463,11 @@ if __name__ == '__main__':
         print(f"WANTED ROWS = 0, {startRow} ~ {endRow}")
         return skipRows
 
-    #route = os.path.join('data', YEAR, 'newCombinedCSV') #read: after combined CSV
-    route = os.path.join('data', YEAR, '5min') #read: after combined CSV
-    csvParser = CSVParser.CSVParser(fileRoute=route, fileName=FREEWAY + '_' + direction + '_alreadyHasVolumeWeather.csv')
+    #route = os.path.join('data', YEAR, '5min') #read CSV
+    csvParser = CSVParser.CSVParser(fileRoute=READ_CSV_FILE_ROUTE, fileName=READ_CSV_FILE_NAME)
     skipRows = generate_skiprows(startRow=START_ROW, endRow=END_ROW) #set the rows that are required to skip
     csvParser.readCSVfile(skiprows=skipRows)
-    ##skiprows=[i for i in range(1, 5042300)]
-    ## usecols=['startkilo', 'endkilo', 'year', 'date', 'starttime', 'endtime']
+
 
     freewayCSVContentDict[FREEWAY+direction] = csvParser.getCSVfileContent()  # get the content of the csv
     change_colTypes()  # convert column types
@@ -456,6 +491,7 @@ if __name__ == '__main__':
     # store_etagCSVData(year=YEAR, type='M03') #儲存etag M03資料
 
 
+
     def start(row):
         index = row['index']
         print(f'startRow={START_ROW} endRow={END_ROW} index = {index}')
@@ -473,8 +509,7 @@ if __name__ == '__main__':
         endkilo = float(row['endkilo'])
 
         #### get ETag GantryID
-        #gantryIDFindResult = MiletoETagGantryConverter.get_EtagEquipmentID(inputArgs={'freeway': FREEWAY, 'direction': direction,
-        #                                                                'startkilo': startkilo, 'endkilo': endkilo})
+        #gantryIDFindResult = MiletoETagGantryConverter.get_EtagEquipmentID(inputArgs={'freeway': FREEWAY, 'direction': direction, 'startkilo': startkilo, 'endkilo': endkilo})
         #gantryID = gantryIDFindResult[0]
         #next_GantryID = gantryIDFindResult[1]
 
@@ -487,17 +522,32 @@ if __name__ == '__main__':
             trafficVolumes = etagDataParserDict['M03'][int(month)][int(day)].get_trafficVolumes(dateTime=starttimeDTform,
                                                                                                 gantryID=gantryID,
                                                                                                 direction=direction)
-            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_S'] = trafficVolumes['S']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_S'] = trafficVolumes[0]
             freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_L'] = trafficVolumes['L']
             freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_T'] = trafficVolumes['T']
             freewayCSVContentDict[FREEWAY+direction].at[index, 'volume'] = trafficVolumes['volume']
             freewayCSVContentDict[FREEWAY+direction].at[index, 'PCU'] = trafficVolumes['PCU']
             freewayCSVContentDict[FREEWAY+direction].at[index, 'heavy_rate'] = trafficVolumes['heavy_rate']
 
-        def read_TrafficVolumeFromVD():
+        def read_trafficCharactersFromVD():
             ###
-            store_VD_Data(year=YEAR, month=month, day=day)
-            VD_DataParserDict[day].get_trafficVolumesFromVD(time, )
+            store_VD_Data(year=YEAR, month=month, day=day)  #儲存VD資料
+            trafficCharacters = VD_DataParserDict[day].get_trafficCharactersFromVD(dateTime=starttimeDTform, vdid=VDID_FindResult)
+            laneOccupancyDict, speedDict, volumeDict = trafficCharacters
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_S'] = volumeDict['S']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_L'] = volumeDict['L']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume_T'] = volumeDict['T']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'volume'] = volumeDict['volume']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'PCU'] = volumeDict['PCU']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'heavy_rate'] = volumeDict['heavy_rate']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'Occupancy'] = laneOccupancyDict['occupancy']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'SpaceSpeed_S'] = trafficSpeed['S']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'SpaceSpeed_L'] = trafficSpeed['L']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'SpaceSpeed_T'] = trafficSpeed['T']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'AvgSpaceSpeed'] = trafficSpeed['Avg']
+            freewayCSVContentDict[FREEWAY+direction].at[index, 'MedianSpaceSpeed'] = trafficSpeed['Median']
+
+
 
         def read_WeatherData():
             ### Weather data parse
@@ -532,7 +582,7 @@ if __name__ == '__main__':
 
             return 0
 
-        read_TrafficSpeed()
+
 
 
     freewayCSVContentDict[FREEWAY+direction]['index'] = np.arange(0, freewayCSVContentDict[FREEWAY+direction].shape[0])
