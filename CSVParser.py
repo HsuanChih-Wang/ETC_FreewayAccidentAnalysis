@@ -53,6 +53,11 @@ class CSVParser():
             print(f'file directory: {os.path.join(self.fileRoute, self.fileName)} not found!')
             raise FileNotFoundError
 
+        except UnicodeDecodeError:
+            print(f'file directory: {os.path.join(self.fileRoute, self.fileName)} can not be decoded by "utf-8"!'
+                  f'Please check encoded type of the file and specify decoded type!')
+            raise UnicodeDecodeError
+
     def __writeCSVfile(self, method: str, newFileName: str, data):
         if method == 'normal':
             with open(os.path.join(self.fileRoute, newFileName), 'w', encoding='UTF-8', newline='') as file:

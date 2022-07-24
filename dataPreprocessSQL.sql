@@ -8,12 +8,10 @@ IGNORE 1 LINES;
 /* */
 DELETE FROM accident_2020_no1_north WHERE right(發生日期,4) not in ('2020'); 
 
-
 /* concencate the data */
 /* 調換日期 -> 變成標準日期格式 */
 UPDATE freeway.accident_2020_no1_north SET 發生日期 = concat(right(發生日期,4), '-',SUBSTRING_INDEX(發生日期, "-", 2)); 
 UPDATE freeway.accident_2020 SET 發生日期 = concat(right(發生日期,4), '-',SUBSTRING_INDEX(發生日期, "-", 2));
-
 
 /*
 LOAD DATA INFILE 'D:/freewayData/accidentData.csv' INTO TABLE accident
@@ -40,10 +38,6 @@ Service Area of FREEWAY No.1: 中壢服務區55km 湖口服務區86km
 DELETE FROM accident_2020_no3_north WHERE 發生公里 in (25, 76, 96) and 發生公尺 = ''; 
 */
 
-/*
-CREATE TABLE fw1_north_new
-AS SELECT  * FROM fw1_north;
-*/
  
 /* Convert datetime to millionSecond 將日期時間轉換為毫秒格式
 UPDATE accident_2020_no1_north as A SET A.millionSec=UNIX_TIMESTAMP(CONCAT(發生日期,' ' ,時,':' , 分));
@@ -55,9 +49,9 @@ UPDATE fw1_north as A SET A.endTime_millionSec = left(UNIX_TIMESTAMP(CONCAT(year
 CREATE INDEX startkilo ON fw3_2020_north_all(startkilo);
 CREATE INDEX endkilo ON fw3_2020_north_all(endkilo);
 
-/*CREATE A NEW TABLE WITH STRUCTURE THAT IS SIMILAR TO ANOTHER TABLE*/
-CREATE TABLE `fw3_2020_north_all_afterSpeed` LIKE `fw1_2020_north_all_afterSpeed`;
-
+/*CREATE A NEW TABLE WITH STRUCTURE THAT IS IDENTICAL TO ANOTHER TABLE*/
+CREATE TABLE `fw1_2020_north_all_VDInfo` LIKE `fw1_2020_north_all_etagSpeed`;
+CREATE TABLE `fw1_2020_north_all_VDInfo` AS SELECT * FROM `fw1_2020_north_all_etaginfo`;
 
 /*  Set DayType  0 = Workweek, 1 = Weekend, 2 = Holiday */ 
 UPDATE freeway.fw1_2020_north_all as A SET A.DayType = 2 where A.date in ('01/01', '01/23', '01/24', '01/25', '01/26', '01/27', '01/28', '01/29',
@@ -131,10 +125,6 @@ DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_S = 0 and SpaceSp
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_L = 0 and SpaceSpeed_L > 0;
 DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE volume_T = 0 and SpaceSpeed_T > 0;
 
-
-
-
-
 /*Set Density*/
 /*CREATE INDEX startkilo ON freeway.fw1_2020_north_all_afterspeed(startkilo);*/
 update freeway.fw1_2020_north_all_afterspeed set Density_byAvgSpeed = round(PCU/AvgSpaceSpeed, 2);
@@ -150,10 +140,10 @@ DELETE FROM freeway.fw3_2020_north_all_afterspeed WHERE Density_byVehicle_S_Spee
 
 
 /*快速方法: 資料匯出成csv*/
-SELECT * INTO OUTFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/output/STEP3. after_add_density/FW3_North_All(afterSQL).csv'
+SELECT * INTO OUTFILE 'C:/Users/WangRabbit/Documents/GitHub/ETC_FreewayAccidentAnalysis/data/Data for [Step 4]/fw1_2020_north_dataForStep4.csv'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY ''
   LINES TERMINATED BY '\n'
-  FROM fw3_2020_north_all_afterspeed; 
+  FROM freeway.fw1_2020_north_all_vdinfo; 
   
 
 

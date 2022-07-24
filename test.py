@@ -91,3 +91,7 @@ for i,j in a,b,c:
 #print("days = ", calendar.monthrange(2022, 1))
 
 
+vvvv = np.arange(100)
+print(vvvv)
+vvvv = vvvv - [1,2,3,4,5]
+print(vvvv)
